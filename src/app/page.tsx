@@ -13,6 +13,7 @@ const BASE_SCAN_URL = "https://basescan.org/tx/";
 // --------------------------------
 
 // --- DETEKSI PAYMASTER ---
+// Variabel ini harus membaca NEXT_PUBLIC_PAYMASTER_URL dari Vercel Environment
 const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 const isGaslessEnabled = !!PAYMASTER_URL;
 // -------------------------
@@ -50,7 +51,6 @@ export default function Home() {
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  // NEW STATE: Untuk menyimpan Hash Transaksi terakhir
   const [txStatus, setTxStatus] = useState("");
   const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
 
@@ -146,7 +146,6 @@ export default function Home() {
   const handleBoost = () => {
     if (!address) return;
     
-    // Reset status sebelum kirim
     setLastTxHash(null);
     setTxStatus("Check wallet...");
     
@@ -154,11 +153,10 @@ export default function Home() {
       to: address, 
       value: parseEther("0"), 
     }, {
-      onSuccess: (hash) => { // TANGKAP HASH TRANSAKSI
-        setLastTxHash(hash); // Simpan hash
-        setTxStatus("Transaction sent! Waiting for block confirmation..."); // Notifikasi awal
+      onSuccess: (hash) => { 
+        setLastTxHash(hash); 
+        setTxStatus("Transaction sent! Waiting for block confirmation...");
         
-        // Simulasikan konfirmasi setelah 3 detik
         setTimeout(() => {
           updateMyStats(address);
           setTxStatus("Success! Your activity score has been boosted."); 
@@ -288,12 +286,12 @@ export default function Home() {
               }
             </button>
             <p className="text-[10px] text-gray-500 mt-3 flex justify-center items-center gap-1">
-              <span>{isGaslessEnabled ? "✅ Gas Fee Sponsored" : "⛽ Gas only (~$0.01)"}</span>
+              {/* ✅ PERBAIKAN DI SINI */}
+              <span>{isGaslessEnabled ? "✅ Gas Fee Sponsored" : "⛽ Gas only (~$0.01)"}</span> 
               <span>•</span>
               <span>📈 Increases Score</span>
             </p>
 
-            {/* --- AREA POP-UP TRANSAKSI BARU --- */}
             {lastTxHash && (
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
                 <p className="text-sm font-bold text-green-400 mb-2">{txStatus}</p>
@@ -309,7 +307,6 @@ export default function Home() {
               </div>
             )}
             
-            {/* Tampilkan status error/pending jika belum ada hash */}
             {txStatus && !lastTxHash && (
               <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatus}</p>
             )}
