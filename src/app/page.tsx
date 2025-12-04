@@ -8,6 +8,15 @@ import { normalize } from 'viem/ens';
 import sdk from "@farcaster/frame-sdk";
 import { Search } from "lucide-react"; 
 
+// --- KONSTANTA BLOCK EXPLORER ---
+const BASE_SCAN_URL = "https://basescan.org/tx/";
+// --------------------------------
+
+// --- DETEKSI PAYMASTER ---
+const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL;
+const isGaslessEnabled = !!PAYMASTER_URL;
+// -------------------------
+
 // 1. Client Base
 const publicClient = createPublicClient({
   chain: base,
@@ -40,9 +49,12 @@ export default function Home() {
   const [targetAddress, setTargetAddress] = useState("");
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // NEW STATE: Untuk menyimpan Hash Transaksi terakhir
   const [txStatus, setTxStatus] = useState("");
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
 
-  // 1. AUTO-DETECT USER (DATA ASLI)
+  // 1. AUTO-DETECT USER 
   useEffect(() => {
     const load = async () => {
       sdk.actions.ready(); 
@@ -114,7 +126,6 @@ export default function Home() {
         const user = data.users[0];
         
         if (user.score) {
-          // ✅ PERBAIKAN: Format jadi 2 digit desimal (Contoh: 0.50)
           const formattedScore = user.score.toFixed(2);
           setNeynarScore(formattedScore);
         } else {
@@ -134,19 +145,29 @@ export default function Home() {
 
   const handleBoost = () => {
     if (!address) return;
+    
+    // Reset status sebelum kirim
+    setLastTxHash(null);
     setTxStatus("Check wallet...");
+    
     sendTransaction({
       to: address, 
       value: parseEther("0"), 
     }, {
-      onSuccess: () => {
-        setTxStatus("Waiting...");
+      onSuccess: (hash) => { // TANGKAP HASH TRANSAKSI
+        setLastTxHash(hash); // Simpan hash
+        setTxStatus("Transaction sent! Waiting for block confirmation..."); // Notifikasi awal
+        
+        // Simulasikan konfirmasi setelah 3 detik
         setTimeout(() => {
           updateMyStats(address);
-          setTxStatus("Success! (+1 Tx)");
+          setTxStatus("Success! Your activity score has been boosted."); 
         }, 3000);
       },
-      onError: () => { setTxStatus("Cancelled"); }
+      onError: () => { 
+        setTxStatus("Cancelled or failed.");
+        setLastTxHash(null);
+      }
     });
   };
 
@@ -242,7 +263,6 @@ export default function Home() {
           <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8"></div>
             <p className="text-xs text-gray-400 uppercase tracking-widest">Neynar Score</p>
-            {/* TAMPILAN SKOR DESIMAL 2 DIGIT */}
             <p className="text-3xl font-bold text-purple-400 mt-1">
               {neynarScore}
             </p>
@@ -260,14 +280,40 @@ export default function Home() {
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border border-blue-400/30"
               }`}
             >
-              {isTxPending ? "Confirming..." : "🔥 BOOST ACTIVITY (+1 TX)"}
+              {isTxPending 
+                ? "Confirming..." 
+                : isGaslessEnabled 
+                  ? "🔥 BOOST ACTIVITY (Gas Free)"
+                  : "🔥 BOOST ACTIVITY (+1 TX)"
+              }
             </button>
             <p className="text-[10px] text-gray-500 mt-3 flex justify-center items-center gap-1">
-              <span>⛽ Gas only (~$0.01)</span>
+              <span>{isGaslessEnabled ? "✅ Gas Fee Sponsored" : "⛽ Gas only (~$0.01)"}</span>
               <span>•</span>
               <span>📈 Increases Score</span>
             </p>
-            {txStatus && <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse">{txStatus}</p>}
+
+            {/* --- AREA POP-UP TRANSAKSI BARU --- */}
+            {lastTxHash && (
+              <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
+                <p className="text-sm font-bold text-green-400 mb-2">{txStatus}</p>
+                <a
+                  href={`${BASE_SCAN_URL}${lastTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-400 hover:text-blue-200 underline flex items-center justify-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  See Transaction on Basescan
+                </a>
+              </div>
+            )}
+            
+            {/* Tampilkan status error/pending jika belum ada hash */}
+            {txStatus && !lastTxHash && (
+              <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatus}</p>
+            )}
+            
           </div>
         ) : (
           <div className="flex flex-col gap-2">
