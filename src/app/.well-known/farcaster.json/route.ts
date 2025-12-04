@@ -3,9 +3,9 @@ import { METADATA } from "../../../lib/utils";
 export async function GET() {
   const config = {
     accountAssociation: {
-      header: "eyJmaWQiOjEyMTQyLCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4MDRlNkYxMTFlQmY2RkQyNTU3NmQ0ODA0ODA5NjI0MzVEYzNhYThEOCJ9",
-      payload: "eyJkb21haW4iOiJmcmFtZXMtdjItZGVtby1saWxhYy52ZXJjZWwuYXBwIn0",
-      signature: "MHg5MGI1YzA0Zjc3MGY1M2I4M2I3OGQzOTMwNTNjMmJjZjUwNmE3ZThjNDViYmEwNDk2OTcwZTM1ZTQ0YzU2MGU1Nzc4Y2Y1ZTJkNDY2YzE1MWQxNGMzYmFjNzM3ZDcxZGEwZDVjYWJmMGMzZTdhYTc2YzRjMmQ5MmE5NDJhYjkyODFj",
+      header: "eyJmaWQiOjM0NTk5MywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDk2Q2MxN0M3N2E1MDREM0ZERDUxNmU2NjIxMzAzMDdFZjc0M2QzMEIifQ",
+      payload: "eyJkb21haW4iOiJ0eC14aGVja2VyLnZlcmNlbC5hcHAifQ",
+      signature: "tS8gI7CYq1qyGedEnUYik706OL4+fym+0FSElp3FuYhSxAvMjC4cnmMs9cPJQVQKs4tO3wR1Ke/NUNzGquzsVhw=",
     },
     frame: {
       version: "1",
