@@ -12,8 +12,7 @@ const publicClient = createPublicClient({
   transport: http(),
 });
 
-// INI ADALAH KODE RAHASIA (SCHEMA UID) UNTUK "COINBASE VERIFIED"
-// Sesuai dengan yang ada di screenshot verify.base.dev kamu
+// SCHEMA UID UNTUK "COINBASE VERIFIED"
 const COINBASE_VERIFIED_SCHEMA = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
 
 export default function Home() {
@@ -32,7 +31,6 @@ export default function Home() {
   
   // State Khusus Verifikasi
   const [isVerified, setIsVerified] = useState(false);
-  const [isCheckingVerify, setIsCheckingVerify] = useState(false);
   
   const [targetAddress, setTargetAddress] = useState("");
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
@@ -61,9 +59,7 @@ export default function Home() {
 
   // --- LOGIC UTAMA: CEK KE SERVER BASE (EAS) ---
   const checkCoinbaseVerification = async (addr: string) => {
-    setIsCheckingVerify(true);
     try {
-      // Kita tanya ke database Base: "Wallet ini punya sertifikat Coinbase Verified gak?"
       const response = await fetch("https://base.easscan.org/graphql", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,7 +75,7 @@ export default function Home() {
           `,
           variables: {
             where: {
-              schemaId: { equals: COINBASE_VERIFIED_SCHEMA }, // Cek Schema Khusus Coinbase
+              schemaId: { equals: COINBASE_VERIFIED_SCHEMA },
               recipient: { equals: addr },
               revoked: { equals: false },
             },
@@ -89,7 +85,6 @@ export default function Home() {
 
       const result = await response.json();
       
-      // Kalau hasilnya ada (lebih dari 0), berarti VERIFIED!
       if (result.data.attestations && result.data.attestations.length > 0) {
         setIsVerified(true);
       } else {
@@ -99,7 +94,6 @@ export default function Home() {
       console.error("Gagal cek verifikasi base", e);
       setIsVerified(false);
     }
-    setIsCheckingVerify(false);
   };
 
   const fetchAddressAndStats = async (fid: number) => {
@@ -116,7 +110,6 @@ export default function Home() {
       if (data.users && data.users[0]) {
         const user = data.users[0];
         
-        // Format Score jadi Persen
         if (user.score) {
           const formattedScore = (user.score * 100).toFixed(1) + "%";
           setNeynarScore(formattedScore);
@@ -127,7 +120,7 @@ export default function Home() {
         const userAddress = user.verified_addresses.eth_addresses[0] || user.custody_address;
         if (userAddress) {
           updateMyStats(userAddress);
-          checkCoinbaseVerification(userAddress); // JALANKAN CEK VERIFIKASI
+          checkCoinbaseVerification(userAddress);
         }
       }
     } catch (error) {
@@ -186,17 +179,17 @@ export default function Home() {
                 {/* --- LOGO CEKLIS BASE VERIFIED --- */}
                 {isVerified ? (
                   <span className="flex items-center gap-1 bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400 shadow-glow">
-                    {/* Icon Centang */}
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-[10px] font-bold text-white">VERIFIED</span>
                   </span>
                 ) : (
-                  // Tombol ke situs verify.base.dev kalau belum verified
+                  // Tombol ke situs verify.base.dev (SUDAH DIPERBAIKI)
                   <a 
                     href="https://verify.base.dev/" 
                     target="_blank" 
+                    rel="noopener noreferrer"
                     className="flex items-center gap-1 text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded border border-gray-600 hover:text-white hover:border-gray-400 transition"
                   >
                     <span>Unverified</span>
