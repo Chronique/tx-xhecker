@@ -1,9 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-
 import FrameProvider from "~/components/providers/FrameProvider";
-
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -12,18 +10,20 @@ const WagmiProvider = dynamic(
   }
 );
 
-const ErudaProvider = dynamic(
-  () => import("~/components/providers/ErudaProvider"),
-  {
-    ssr: false,
-  }
-);
+// --- HAPUS ATAU KOMENTARI BAGIAN INI ---
+// const ErudaProvider = dynamic(
+//   () => import("~/components/providers/ErudaProvider"),
+//   {
+//     ssr: false,
+//   }
+// );
+// ---------------------------------------
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider>
       <FrameProvider>
-        <ErudaProvider />
+        {/* <ErudaProvider />  <-- HAPUS INI JUGA */}
         {children}
       </FrameProvider>
     </WagmiProvider>

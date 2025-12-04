@@ -6,21 +6,20 @@ import { createPublicClient, http, parseEther } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search } from "lucide-react"; // <--- 1. IMPORT ICON DARI SINI
+import { Search } from "lucide-react"; 
 
-// 1. Client Base (Buat Cek Transaksi & Score)
+// 1. Client Base
 const publicClient = createPublicClient({
   chain: base,
   transport: http(),
 });
 
-// 2. Client Mainnet (Khusus Buat Cek ENS)
+// 2. Client Mainnet
 const mainnetClient = createPublicClient({
   chain: mainnet,
   transport: http(),
 });
 
-// SCHEMA UID UNTUK "COINBASE VERIFIED"
 const COINBASE_VERIFIED_SCHEMA = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
 
 export default function Home() {
@@ -28,6 +27,11 @@ export default function Home() {
   const { connectors, connect } = useConnect();
   
   const { sendTransaction, isPending: isTxPending } = useSendTransaction();
+
+  // --- 📸 MODE SCREENSHOT (DUMMY JESSE) ---
+  // Ganti ke 'false' kalau mau balik ke mode asli
+  const IS_DUMMY_MODE = true; 
+  // ----------------------------------------
 
   // State
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -43,10 +47,27 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [txStatus, setTxStatus] = useState("");
 
-  // 1. AUTO-DETECT USER DARI FARCASTER
+  // 1. AUTO-DETECT USER (DENGAN DUMMY MODE)
   useEffect(() => {
     const load = async () => {
       sdk.actions.ready(); 
+
+      // --- LOGIC DUMMY JESSE ---
+      if (IS_DUMMY_MODE) {
+        setFarcasterUser({
+          username: "jessepollak",
+          fid: 99, 
+          pfpUrl: "https://github.com/jessepollak.png" 
+        });
+        // ✅ GANTI SKOR DUMMY JADI DESIMAL
+        setNeynarScore("0.999"); 
+        setMyTxCount(8453); 
+        setIsVerified(true); 
+        setIsSDKLoaded(true);
+        return; 
+      }
+      // -------------------------
+
       const context = await sdk.context;
       if (context?.user) {
         setFarcasterUser(context.user);
@@ -115,7 +136,9 @@ export default function Home() {
         const user = data.users[0];
         
         if (user.score) {
-          const formattedScore = (user.score * 100).toFixed(1) + "%";
+          // ✅ PERBAIKAN: TAMPILKAN DESIMAL (3 ANGKA BELAKANG KOMA)
+          // Contoh: 0.53218 -> "0.532"
+          const formattedScore = user.score.toFixed(3);
           setNeynarScore(formattedScore);
         } else {
           setNeynarScore("N/A"); 
@@ -133,6 +156,12 @@ export default function Home() {
   };
 
   const handleBoost = () => {
+    if (IS_DUMMY_MODE) {
+        setTxStatus("DUMMY MODE: Transaction Sent! 🚀");
+        setTimeout(() => setTxStatus("Success! (+1 Tx)"), 2000);
+        return;
+    }
+
     if (!address) return;
     setTxStatus("Check wallet...");
     sendTransaction({
@@ -242,13 +271,14 @@ export default function Home() {
           <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8"></div>
             <p className="text-xs text-gray-400 uppercase tracking-widest">Neynar Score</p>
+            {/* TAMPILAN SKOR */}
             <p className="text-3xl font-bold text-purple-400 mt-1">
               {neynarScore}
             </p>
           </div>
         </div>
 
-        {isConnected ? (
+        {isConnected || IS_DUMMY_MODE ? (
           <div className="text-center">
             <button
               onClick={handleBoost}
@@ -293,7 +323,6 @@ export default function Home() {
             value={targetAddress}
             onChange={(e) => setTargetAddress(e.target.value)}
           />
-          {/* --- 2. GANTI TOMBOL DISINI --- */}
           <button
             onClick={handleCheckOther}
             disabled={loading}
