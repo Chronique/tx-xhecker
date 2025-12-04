@@ -22,7 +22,6 @@ export async function GET() {
       requiredCapabilities: [
         "actions.ready",
         "actions.signIn",
-        // "actions.openMiniApp",  <-- INI DIHAPUS KARENA MEMICU ERROR
         "actions.openUrl",
         "actions.sendToken",
         "actions.viewToken",
@@ -38,11 +37,11 @@ export async function GET() {
         "eip155:8453",
         "eip155:10"
       ],
-      // PERBAIKAN: Hapus "https://" dari sini
       canonicalDomain: "tx-xhecker.vercel.app", 
       noindex: false,
       tags: ["base", "tools"]
     },
+    // PERBAIKAN: Cukup pilih satu saja, "utility" paling pas
     primaryCategory: "utility", 
     baseBuilder: {
       allowedAddresses: ["0x4fba95e4772be6d37a0c931D00570Fe2c9675524"],
