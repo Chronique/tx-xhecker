@@ -42,9 +42,7 @@ export async function GET() {
       noindex: false,
       tags: ["base", "tools"]
     },
-    // --- TAMBAHKAN BARIS INI ---
-    primaryCategory: "utility", 
-    // ---------------------------
+    primaryCategory: "utility", // <--- Pastikan di sini (sejajar dengan frame)
     baseBuilder: {
       allowedAddresses: ["0x4fba95e4772be6d37a0c931D00570Fe2c9675524"],
     }
