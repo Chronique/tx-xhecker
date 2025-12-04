@@ -3,12 +3,20 @@
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, parseEther } from "viem";
-import { base } from "viem/chains";
+import { base, mainnet } from "viem/chains"; 
+import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
+import { Search } from "lucide-react"; // <--- 1. IMPORT ICON DARI SINI
 
-// Setup Client Base
+// 1. Client Base (Buat Cek Transaksi & Score)
 const publicClient = createPublicClient({
   chain: base,
+  transport: http(),
+});
+
+// 2. Client Mainnet (Khusus Buat Cek ENS)
+const mainnetClient = createPublicClient({
+  chain: mainnet,
   transport: http(),
 });
 
@@ -19,7 +27,6 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // Hook buat kirim transaksi (Bayar Gas)
   const { sendTransaction, isPending: isTxPending } = useSendTransaction();
 
   // State
@@ -29,7 +36,6 @@ export default function Home() {
   const [myTxCount, setMyTxCount] = useState<number | null>(null);
   const [neynarScore, setNeynarScore] = useState<string>("Loading...");
   
-  // State Khusus Verifikasi
   const [isVerified, setIsVerified] = useState(false);
   
   const [targetAddress, setTargetAddress] = useState("");
@@ -51,13 +57,11 @@ export default function Home() {
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
 
-  // Fungsi Update Data
   const updateMyStats = async (addr: string) => {
     const count = await publicClient.getTransactionCount({ address: addr as `0x${string}` });
     setMyTxCount(count);
   };
 
-  // --- LOGIC UTAMA: CEK KE SERVER BASE (EAS) ---
   const checkCoinbaseVerification = async (addr: string) => {
     try {
       const response = await fetch("https://base.easscan.org/graphql", {
@@ -128,7 +132,6 @@ export default function Home() {
     }
   };
 
-  // --- FUNGSI BOOST ---
   const handleBoost = () => {
     if (!address) return;
     setTxStatus("Check wallet...");
@@ -148,12 +151,44 @@ export default function Home() {
   };
 
   const handleCheckOther = async () => {
-    if (!targetAddress.startsWith("0x")) { alert("Invalid address!"); return; }
+    let searchInput = targetAddress.trim();
+    let finalAddress = searchInput;
+
     setLoading(true);
+    setOtherTxCount(null); 
+
     try {
-      const count = await publicClient.getTransactionCount({ address: targetAddress as `0x${string}` });
+      if (searchInput.toLowerCase().endsWith(".eth")) {
+        const resolvedAddr = await mainnetClient.getEnsAddress({
+          name: normalize(searchInput),
+        });
+
+        if (resolvedAddr) {
+          finalAddress = resolvedAddr;
+        } else {
+          alert("ENS name not found or not set!");
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!finalAddress.startsWith("0x") || finalAddress.length !== 42) {
+        alert("Invalid address or ENS name!");
+        setLoading(false);
+        return;
+      }
+
+      const count = await publicClient.getTransactionCount({ 
+        address: finalAddress as `0x${string}` 
+      });
+      
       setOtherTxCount(count);
-    } catch (err) { alert("Error"); }
+
+    } catch (err) { 
+      console.error(err);
+      alert("Error fetching data. Try again."); 
+    }
+    
     setLoading(false);
   };
 
@@ -163,10 +198,7 @@ export default function Home() {
         BASE STATS CHECKER
       </h1>
 
-      {/* --- PROFILE SECTION --- */}
       <div className="bg-gray-900 p-6 rounded-xl border border-blue-500 mb-6 shadow-lg shadow-blue-500/20">
-        
-        {/* Header Profil */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
              {farcasterUser?.pfpUrl && (
@@ -175,8 +207,6 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
-                
-                {/* --- LOGO CEKLIS BASE VERIFIED --- */}
                 {isVerified ? (
                   <span className="flex items-center gap-1 bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400 shadow-glow">
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
@@ -185,7 +215,6 @@ export default function Home() {
                     <span className="text-[10px] font-bold text-white">VERIFIED</span>
                   </span>
                 ) : (
-                  // Tombol ke situs verify.base.dev (SUDAH DIPERBAIKI)
                   <a 
                     href="https://verify.base.dev/" 
                     target="_blank" 
@@ -202,7 +231,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Statistik Grid */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700">
             <p className="text-xs text-gray-400 uppercase tracking-widest">Total Tx</p>
@@ -220,7 +248,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- TOMBOL BOOST --- */}
         {isConnected ? (
           <div className="text-center">
             <button
@@ -256,27 +283,28 @@ export default function Home() {
         )}
       </div>
 
-      {/* --- FOOTER: CHECK OTHERS --- */}
       <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-800">
-        <h2 className="text-sm font-bold mb-3 text-gray-400 uppercase">Search Wallet</h2>
+        <h2 className="text-sm font-bold mb-3 text-gray-400 uppercase">Search Wallet or ENS</h2>
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="0x..."
+            placeholder="0x... or vitalik.eth"
             className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white focus:border-blue-500 outline-none text-sm font-mono"
             value={targetAddress}
             onChange={(e) => setTargetAddress(e.target.value)}
           />
+          {/* --- 2. GANTI TOMBOL DISINI --- */}
           <button
             onClick={handleCheckOther}
             disabled={loading}
-            className="bg-gray-700 px-4 rounded-lg font-bold hover:bg-gray-600 disabled:opacity-50"
+            className="bg-gray-700 px-4 rounded-lg font-bold hover:bg-gray-600 disabled:opacity-50 flex items-center justify-center"
           >
-            🔍
+            {loading ? "..." : <Search className="w-5 h-5" />} 
           </button>
         </div>
         {otherTxCount !== null && (
           <div className="mt-3 text-center bg-green-900/20 p-2 rounded border border-green-500/30">
+             <p className="text-gray-400 text-xs mb-1">Result for wallet:</p>
              <p className="text-green-400 font-bold text-lg">{otherTxCount} Transactions</p>
           </div>
         )}
