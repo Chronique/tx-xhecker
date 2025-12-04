@@ -28,11 +28,6 @@ export default function Home() {
   
   const { sendTransaction, isPending: isTxPending } = useSendTransaction();
 
-  // --- 📸 MODE SCREENSHOT (DUMMY JESSE) ---
-  // Ganti ke 'false' kalau mau balik ke mode asli
-  const IS_DUMMY_MODE = true; 
-  // ----------------------------------------
-
   // State
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
@@ -47,27 +42,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [txStatus, setTxStatus] = useState("");
 
-  // 1. AUTO-DETECT USER (DENGAN DUMMY MODE)
+  // 1. AUTO-DETECT USER (DATA ASLI)
   useEffect(() => {
     const load = async () => {
       sdk.actions.ready(); 
-
-      // --- LOGIC DUMMY JESSE ---
-      if (IS_DUMMY_MODE) {
-        setFarcasterUser({
-          username: "jessepollak",
-          fid: 99, 
-          pfpUrl: "https://github.com/jessepollak.png" 
-        });
-        // ✅ GANTI SKOR DUMMY JADI DESIMAL
-        setNeynarScore("0.999"); 
-        setMyTxCount(8453); 
-        setIsVerified(true); 
-        setIsSDKLoaded(true);
-        return; 
-      }
-      // -------------------------
-
       const context = await sdk.context;
       if (context?.user) {
         setFarcasterUser(context.user);
@@ -136,9 +114,8 @@ export default function Home() {
         const user = data.users[0];
         
         if (user.score) {
-          // ✅ PERBAIKAN: TAMPILKAN DESIMAL (3 ANGKA BELAKANG KOMA)
-          // Contoh: 0.53218 -> "0.532"
-          const formattedScore = user.score.toFixed(3);
+          // ✅ PERBAIKAN: Format jadi 2 digit desimal (Contoh: 0.50)
+          const formattedScore = user.score.toFixed(2);
           setNeynarScore(formattedScore);
         } else {
           setNeynarScore("N/A"); 
@@ -156,12 +133,6 @@ export default function Home() {
   };
 
   const handleBoost = () => {
-    if (IS_DUMMY_MODE) {
-        setTxStatus("DUMMY MODE: Transaction Sent! 🚀");
-        setTimeout(() => setTxStatus("Success! (+1 Tx)"), 2000);
-        return;
-    }
-
     if (!address) return;
     setTxStatus("Check wallet...");
     sendTransaction({
@@ -271,14 +242,14 @@ export default function Home() {
           <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8"></div>
             <p className="text-xs text-gray-400 uppercase tracking-widest">Neynar Score</p>
-            {/* TAMPILAN SKOR */}
+            {/* TAMPILAN SKOR DESIMAL 2 DIGIT */}
             <p className="text-3xl font-bold text-purple-400 mt-1">
               {neynarScore}
             </p>
           </div>
         </div>
 
-        {isConnected || IS_DUMMY_MODE ? (
+        {isConnected ? (
           <div className="text-center">
             <button
               onClick={handleBoost}
