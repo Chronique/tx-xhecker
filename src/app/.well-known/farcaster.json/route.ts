@@ -42,7 +42,7 @@ export async function GET() {
       tags: ["base", "tools"]
     },
     // GANTI KE "developer-tools" (Semoga ini lolos!)
-    primaryCategory: "developer-tools", 
+    primaryCategory: "productivity", 
     baseBuilder: {
       allowedAddresses: ["0x4fba95e4772be6d37a0c931D00570Fe2c9675524"],
     }
