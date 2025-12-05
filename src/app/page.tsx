@@ -9,8 +9,8 @@ import sdk from "@farcaster/frame-sdk";
 import { Search } from "lucide-react"; 
 
 // --- KONSTANTA BLOCK EXPLORER ---
-// ✅ FIX: Ganti ke Blockscout karena lebih baik dalam menangani EIP-4337 (User Ops)
-const BLOCK_EXPLORER_URL = "https://base.blockscout.com/tx/";
+// FIX: Gunakan URL dasar Blockscout
+const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
 // --------------------------------
 
 // --- DETEKSI PAYMASTER ---
@@ -228,6 +228,11 @@ export default function Home() {
     setLoading(false);
   };
 
+  // --- LOGIC PENENTU LINK ---
+  const explorerPath = isGaslessEnabled ? 'op/' : 'tx/';
+  const explorerName = isGaslessEnabled ? 'Blockscout (User Op)' : 'Blockscout (Standard Tx)';
+
+
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono">
       <h1 className="text-3xl font-bold mb-6 text-blue-500 text-center">
@@ -312,13 +317,14 @@ export default function Home() {
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
                 <p className="text-sm font-bold text-green-400 mb-2">{txStatus}</p>
                 <a
-                  href={`${BLOCK_EXPLORER_URL}${lastTxHash}`}
+                  // ✅ LINK DINAMIS: Menggunakan /op/ jika Paymaster aktif, dan /tx/ jika tidak.
+                  href={`${BLOCK_EXPLORER_BASE_URL}${explorerPath}${lastTxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 hover:text-blue-200 underline flex items-center justify-center gap-1"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  See Transaction on Blockscout (User Ops)
+                  See Transaction on {explorerName}
                 </a>
               </div>
             )}
