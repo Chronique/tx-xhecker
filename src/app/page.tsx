@@ -9,7 +9,7 @@ import sdk from "@farcaster/frame-sdk";
 import { Search } from "lucide-react"; 
 
 // --- KONSTANTA BLOCK EXPLORER ---
-// FIX: Gunakan URL dasar Blockscout
+// FIX: URL diarahkan ke halaman address Blockscout
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
 // --------------------------------
 
@@ -52,6 +52,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   
   const [txStatus, setTxStatus] = useState("");
+  // lastTxHash sekarang hanya untuk flag opsional di Wagmi, tidak dipakai di URL
   const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
 
   // 1. AUTO-DETECT USER 
@@ -154,7 +155,6 @@ export default function Home() {
       value: parseEther("0"), 
     }, {
       onSuccess: (hash) => {
-        setLastTxHash(hash); 
         setTxStatus("Transaction submitted! Waiting for Base confirmation...");
 
         const checkReceipt = async () => {
@@ -166,13 +166,14 @@ export default function Home() {
                 
                 if (receipt.status === 'success') {
                     updateMyStats(address); 
-                    setTxStatus("Success! Your activity score has been boosted. (Tx Confirmed)"); 
+                    // ✅ FIX: Pesan sukses baru
+                    setTxStatus("Success! Your activity score has been boosted."); 
                 } else {
                     setTxStatus("Transaction failed on Base (Reverted).");
                 }
             } catch (error) {
                 console.error("Confirmation Error:", error);
-                setTxStatus("Confirmation timed out or failed to verify. Please check Blockscout manually.");
+                setTxStatus("Confirmation timed out or failed. Please check Blockscout manually.");
             }
         };
 
@@ -227,11 +228,6 @@ export default function Home() {
     
     setLoading(false);
   };
-
-  // --- LOGIC PENENTU LINK ---
-  const explorerPath = isGaslessEnabled ? 'op/' : 'tx/';
-  const explorerName = isGaslessEnabled ? 'Blockscout (User Op)' : 'Blockscout (Standard Tx)';
-
 
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono">
@@ -313,23 +309,33 @@ export default function Home() {
               <span>📈 Increases Score</span>
             </p>
 
-            {lastTxHash && (
+            {/* ✅ LOGIC TAMPILAN FINAL SUKSES */}
+            {txStatus.includes("Success!") && address && (
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
-                <p className="text-sm font-bold text-green-400 mb-2">{txStatus}</p>
+                <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p>
+                
+                {/* Link ke halaman address Blockscout */}
                 <a
-                  // ✅ LINK DINAMIS: Menggunakan /op/ jika Paymaster aktif, dan /tx/ jika tidak.
-                  href={`${BLOCK_EXPLORER_BASE_URL}${explorerPath}${lastTxHash}`}
+                  href={`${BLOCK_EXPLORER_BASE_URL}address/${address}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 hover:text-blue-200 underline flex items-center justify-center gap-1"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  See Transaction on {explorerName}
+                  Check Transaction History on Blockscout
                 </a>
+
+                {/* Instruksi khusus untuk Smart Wallet (User Op) */}
+                {isGaslessEnabled && (
+                  <p className="text-[10px] text-gray-500 mt-2">
+                    Note: If using Base Wallet, check the **User Operations** tab for details.
+                  </p>
+                )}
               </div>
             )}
             
-            {txStatus && !lastTxHash && (
+            {/* Tampilkan status Pending / Failed */}
+            {txStatus && !txStatus.includes("Success!") && (
               <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatus}</p>
             )}
             
