@@ -13,7 +13,6 @@ const BASE_SCAN_URL = "https://basescan.org/tx/";
 // --------------------------------
 
 // --- DETEKSI PAYMASTER ---
-// Variabel ini harus membaca NEXT_PUBLIC_PAYMASTER_URL dari Vercel Environment
 const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 const isGaslessEnabled = !!PAYMASTER_URL;
 // -------------------------
@@ -153,17 +152,39 @@ export default function Home() {
       to: address, 
       value: parseEther("0"), 
     }, {
-      onSuccess: (hash) => { 
+      onSuccess: (hash) => {
         setLastTxHash(hash); 
-        setTxStatus("Transaction sent! Waiting for block confirmation...");
-        
-        setTimeout(() => {
-          updateMyStats(address);
-          setTxStatus("Success! Your activity score has been boosted."); 
-        }, 3000);
+        setTxStatus("Transaction submitted! Waiting for Base confirmation...");
+
+        const checkReceipt = async () => {
+            try {
+                // ✅ FIX: TUNGGU SAMPAI TX TERKONFIRMASI DI BLOCKCHAIN
+                const receipt = await publicClient.waitForTransactionReceipt({ 
+                    hash: hash as `0x${string}`,
+                    timeout: 60_000 // Set timeout 60 detik
+                });
+                
+                if (receipt.status === 'success') {
+                    // Update stats HANYA jika transaksi sukses diconfirm
+                    updateMyStats(address); 
+                    setTxStatus("Success! Your activity score has been boosted. (Tx Confirmed)"); 
+                } else {
+                    // Transaksi gagal (revert)
+                    setTxStatus("Transaction failed on Base (Reverted).");
+                }
+            } catch (error) {
+                // Terjadi error saat menunggu konfirmasi (Timeout, dll.)
+                console.error("Confirmation Error:", error);
+                setTxStatus("Confirmation timed out or failed to verify. Please check Basescan manually.");
+            }
+        };
+
+        // Jalankan pengecekan receipt
+        checkReceipt();
       },
-      onError: () => { 
-        setTxStatus("Cancelled or failed.");
+      onError: (error) => { 
+        console.error("Transaction Error:", error);
+        setTxStatus(`Cancelled or failed: ${error.message || 'Unknown error'}`);
         setLastTxHash(null);
       }
     });
@@ -286,8 +307,7 @@ export default function Home() {
               }
             </button>
             <p className="text-[10px] text-gray-500 mt-3 flex justify-center items-center gap-1">
-              {/* ✅ PERBAIKAN DI SINI */}
-              <span>{isGaslessEnabled ? "✅ Gas Fee Sponsored" : "⛽ Gas only (~$0.01)"}</span> 
+              <span>{isGaslessEnabled ? "✅ Gas Fee Sponsored" : "⛽ Gas only (~$0.01)"}</span>
               <span>•</span>
               <span>📈 Increases Score</span>
             </p>
