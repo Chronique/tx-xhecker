@@ -9,7 +9,8 @@ import sdk from "@farcaster/frame-sdk";
 import { Search } from "lucide-react"; 
 
 // --- KONSTANTA BLOCK EXPLORER ---
-const BASE_SCAN_URL = "https://basescan.org/tx/";
+// ✅ FIX: Ganti ke Blockscout karena lebih baik dalam menangani EIP-4337 (User Ops)
+const BLOCK_EXPLORER_URL = "https://base.blockscout.com/tx/";
 // --------------------------------
 
 // --- DETEKSI PAYMASTER ---
@@ -158,28 +159,23 @@ export default function Home() {
 
         const checkReceipt = async () => {
             try {
-                // ✅ FIX: TUNGGU SAMPAI TX TERKONFIRMASI DI BLOCKCHAIN
                 const receipt = await publicClient.waitForTransactionReceipt({ 
                     hash: hash as `0x${string}`,
-                    timeout: 60_000 // Set timeout 60 detik
+                    timeout: 60_000 
                 });
                 
                 if (receipt.status === 'success') {
-                    // Update stats HANYA jika transaksi sukses diconfirm
                     updateMyStats(address); 
                     setTxStatus("Success! Your activity score has been boosted. (Tx Confirmed)"); 
                 } else {
-                    // Transaksi gagal (revert)
                     setTxStatus("Transaction failed on Base (Reverted).");
                 }
             } catch (error) {
-                // Terjadi error saat menunggu konfirmasi (Timeout, dll.)
                 console.error("Confirmation Error:", error);
-                setTxStatus("Confirmation timed out or failed to verify. Please check Basescan manually.");
+                setTxStatus("Confirmation timed out or failed to verify. Please check Blockscout manually.");
             }
         };
 
-        // Jalankan pengecekan receipt
         checkReceipt();
       },
       onError: (error) => { 
@@ -316,13 +312,13 @@ export default function Home() {
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
                 <p className="text-sm font-bold text-green-400 mb-2">{txStatus}</p>
                 <a
-                  href={`${BASE_SCAN_URL}${lastTxHash}`}
+                  href={`${BLOCK_EXPLORER_URL}${lastTxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 hover:text-blue-200 underline flex items-center justify-center gap-1"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  See Transaction on Basescan
+                  See Transaction on Blockscout (User Ops)
                 </a>
               </div>
             )}
