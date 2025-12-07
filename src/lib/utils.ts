@@ -14,7 +14,7 @@ export const METADATA = {
   
   // Screenshot tetap pakai link eksternal atau upload dulu ke public juga
   screenshotUrls: [
-    'hhttps://tx-xhecker.vercel.app/screenshot.png',
+    'https://tx-xhecker.vercel.app/screenshot.png',
   ],
   
   homeUrl: "https://tx-xhecker.vercel.app",
