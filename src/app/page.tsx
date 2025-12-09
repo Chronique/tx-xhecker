@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useConnect, useSendTransaction } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, parseEther } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
@@ -9,22 +9,22 @@ import sdk from "@farcaster/frame-sdk";
 import { Search, Star, Share2 } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 
-// --- KONSTANTA BLOCK EXPLORER ---
+// --- BLOCK EXPLORER CONSTANTS ---
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
 // --------------------------------
 
-// --- DETEKSI PAYMASTER ---
+// --- PAYMASTER DETECTION ---
 const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 const isGaslessEnabled = !!PAYMASTER_URL;
 // -------------------------
 
-// 1. Client Base
+// 1. Base Client
 const publicClient = createPublicClient({
   chain: base,
   transport: http(),
 });
 
-// 2. Client Mainnet
+// 2. Mainnet Client
 const mainnetClient = createPublicClient({
   chain: mainnet,
   transport: http(),
@@ -51,9 +51,9 @@ export default function Home() {
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  const [txStatus, setTxStatus] = useState("");
+  const [txStatusMessage, setTxStatusMessage] = useState(""); // Renamed from txStatus
   const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
-  const [isAdded, setIsAdded] = useState(false); // ✅ NEW STATE: Status App Added
+  const [isAdded, setIsAdded] = useState(false); 
 
   // 1. AUTO-DETECT USER 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function Home() {
         setIsVerified(false);
       }
     } catch (e) {
-      console.error("Gagal cek verifikasi base", e);
+      console.error("Failed to check Base verification:", e); // Translated
       setIsVerified(false);
     }
   };
@@ -140,22 +140,22 @@ export default function Home() {
         }
       }
     } catch (error) {
-      console.error("Gagal load data", error);
+      console.error("Failed to load data:", error); // Translated
     }
   };
 
-  const handleBoost = () => {
+  const handleBoostActivity = () => { // Renamed from handleBoost
     if (!address) return;
     
     setLastTxHash(null);
-    setTxStatus("Check wallet...");
+    setTxStatusMessage("Checking wallet..."); // Translated
     
     sendTransaction({
       to: address, 
       value: parseEther("0"), 
     }, {
       onSuccess: (hash) => {
-        setTxStatus("Transaction submitted! Waiting for Base confirmation...");
+        setTxStatusMessage("Transaction submitted! Waiting for Base confirmation..."); // Translated
 
         const checkReceipt = async () => {
             try {
@@ -166,13 +166,13 @@ export default function Home() {
                 
                 if (receipt.status === 'success') {
                     updateMyStats(address); 
-                    setTxStatus("Success! Your activity score has been boosted."); 
+                    setTxStatusMessage("Success! Activity score has been boosted. (Tx Confirmed)"); // Translated
                 } else {
-                    setTxStatus("Transaction failed on Base (Reverted).");
+                    setTxStatusMessage("Transaction failed on Base (Reverted)."); // Translated
                 }
             } catch (error) {
                 console.error("Confirmation Error:", error);
-                setTxStatus("Confirmation timed out or failed. Please check Blockscout manually.");
+                setTxStatusMessage("Confirmation timed out or failed. Please check Blockscout manually."); // Translated
             }
         };
 
@@ -180,13 +180,13 @@ export default function Home() {
       },
       onError: (error) => { 
         console.error("Transaction Error:", error);
-        setTxStatus(`Cancelled or failed: ${error.message || 'Unknown error'}`);
+        setTxStatusMessage(`Cancelled or failed: ${error.message || 'Unknown error'}`); // Translated
         setLastTxHash(null);
       }
     });
   };
 
-  const handleCheckOther = async () => {
+  const handleSearchAddress = async () => { // Renamed from handleCheckOther
     let searchInput = targetAddress.trim();
     let finalAddress = searchInput;
 
@@ -222,38 +222,32 @@ export default function Home() {
 
     } catch (err) { 
       console.error(err);
-      alert("Error fetching data. Try again."); 
+      alert("Error fetching data. Try again.");
     }
     
     setLoading(false);
   };
   
-  // ✅ FUNGSI MEMUNCULKAN POP-UP "ADD APP"
   const handleAddMiniApp = async () => {
       try {
           await sdk.actions.addMiniApp(); 
           setIsAdded(true); 
-          alert(`App ${METADATA.name} berhasil ditambahkan! 🎉`);
+          alert(`App ${METADATA.name} successfully added! 🎉`); // Translated
       } catch (e) {
-          alert("Gagal menambahkan Mini App. Mungkin dibatalkan atau sudah ditambahkan.");
+          alert("Failed to add Mini App. User might have cancelled or app is already added."); // Translated
           console.error("Add Mini App failed:", e);
       }
   };
 
-  // ✅ FUNGSI SHARE APP (Deep Link dengan Embed)
   const handleShareCast = () => {
-      // 1. URL Aplikasi Anda (dari METADATA.homeUrl)
-      const appUrl = METADATA.homeUrl;
+      // Use METADATA for dynamic text and link
+      const shareText = `Check out my stats on the ${METADATA.name} mini app on Base! Get your score and boost your activity. 🚀\n\nLink: ${METADATA.homeUrl}`;
       
-      // 2. Teks Promosi
-      const text = `Cek statistik Base saya di Mini App ${METADATA.name}! Dapatkan skor Anda dan tingkatkan aktivitas on-chain sekarang. 🚀`;
-      
-      // 3. Encode URL dan Teks untuk dimasukkan ke link
-      const encodedText = encodeURIComponent(text);
-      const encodedEmbed = encodeURIComponent(appUrl);
+      // Use encodeURIComponent for safe deep link construction
+      const encodedText = encodeURIComponent(shareText);
+      const encodedEmbed = encodeURIComponent(METADATA.homeUrl);
 
-      // 4. Buka Deep Link Warpcast dengan parameter embeds[]
-      // Parameter embeds[] inilah yang memaksa preview Mini App muncul.
+      // Open Warpcast Deep Link with the embeds[] parameter
       sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodedText}&embeds[]=${encodedEmbed}`);
   };
 
@@ -303,7 +297,7 @@ export default function Home() {
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-widest">Total Tx</p>
+            <p className="text-xs text-gray-400 uppercase tracking-widest">Total TXs</p> {/* Translated */}
             <p className="text-3xl font-bold text-green-400 mt-1">
               {myTxCount !== null ? myTxCount : "..."}
             </p>
@@ -321,7 +315,7 @@ export default function Home() {
         {isConnected ? (
           <div className="text-center">
             <button
-              onClick={handleBoost}
+              onClick={handleBoostActivity} // Renamed
               disabled={isTxPending}
               className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95 ${
                 isTxPending 
@@ -343,9 +337,9 @@ export default function Home() {
             </p>
 
             {/* Area Status & Link */}
-            {txStatus.includes("Success!") && address && (
+            {txStatusMessage.includes("Success!") && address && (
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
-                <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p>
+                <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p> {/* Translated */}
                 
                 <a
                   href={`${BLOCK_EXPLORER_BASE_URL}address/${address}`}
@@ -354,7 +348,7 @@ export default function Home() {
                   className="text-xs text-blue-400 hover:text-blue-200 underline flex items-center justify-center gap-1"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  Check Transaction History on Blockscout
+                  View Transaction History on Blockscout {/* Translated */}
                 </a>
 
                 {isGaslessEnabled && (
@@ -365,15 +359,16 @@ export default function Home() {
               </div>
             )}
             
-            {txStatus && !txStatus.includes("Success!") && (
-              <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatus}</p>
+            {/* Tampilkan status Pending / Failed */}
+            {txStatusMessage && !txStatusMessage.includes("Success!") && (
+              <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatusMessage}</p>
             )}
             
             {/* BAGIAN TOMBOL ADD/SHARE BARU */}
             <div className="flex justify-center gap-4 mt-6">
                 <button
                     onClick={handleAddMiniApp}
-                    disabled={isAdded} // Disable jika sudah ditambahkan
+                    disabled={isAdded} 
                     className={`flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-full font-bold text-white transition active:scale-95 text-sm ${isAdded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-700'}`}
                 >
                     <Star className="w-4 h-4"/>
@@ -417,7 +412,7 @@ export default function Home() {
             onChange={(e) => setTargetAddress(e.target.value)}
           />
           <button
-            onClick={handleCheckOther}
+            onClick={handleSearchAddress} // Renamed
             disabled={loading}
             className="bg-gray-700 px-4 rounded-lg font-bold hover:bg-gray-600 disabled:opacity-50 flex items-center justify-center"
           >
@@ -431,6 +426,6 @@ export default function Home() {
           </div>
         )}
       </div>
-    </div >
+    </div>
   );
 }
