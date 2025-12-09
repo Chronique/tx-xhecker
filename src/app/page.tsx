@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useConnect, useDisconnect, useSendTransaction } from "wagmi";
+import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, parseEther } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
@@ -228,32 +228,33 @@ export default function Home() {
     setLoading(false);
   };
   
-  // ✅ FUNGSI BARU: ADD MINI APP (Sesuai Konsep User)
+  // ✅ FUNGSI MEMUNCULKAN POP-UP "ADD APP"
   const handleAddMiniApp = async () => {
       try {
           await sdk.actions.addMiniApp(); 
-          setIsAdded(true); // Set state setelah sukses
-          alert(`App ${METADATA.name} added successfully! 🎉`);
+          setIsAdded(true); 
+          alert(`App ${METADATA.name} berhasil ditambahkan! 🎉`);
       } catch (e) {
-          alert("Failed to add Mini App. User might have cancelled or app is already added.");
+          alert("Gagal menambahkan Mini App. Mungkin dibatalkan atau sudah ditambahkan.");
           console.error("Add Mini App failed:", e);
       }
   };
 
-  // ✅ FUNGSI BARU: COMPOSE CAST / SHARE (Menggunakan format teks yang rapi)
-  const handleShareCast = async () => {
-      // Menggunakan format teks yang bagus dari konsep user
-      const shareText = `Check out my stats on the ${METADATA.name} mini app on Base! Get your score and boost your activity. 🚀\n\nLink: ${METADATA.homeUrl}`;
+  // ✅ FUNGSI SHARE APP (Deep Link dengan Embed)
+  const handleShareCast = () => {
+      // 1. URL Aplikasi Anda (dari METADATA.homeUrl)
+      const appUrl = METADATA.homeUrl;
       
-      try {
-          // Menggunakan SDK native composeCast untuk hasil yang lebih stabil
-          await sdk.actions.composeCast({ 
-              text: shareText,
-          });
-      } catch (e) {
-          alert("Failed to open cast composer.");
-          console.error("Compose Cast failed:", e);
-      }
+      // 2. Teks Promosi
+      const text = `Cek statistik Base saya di Mini App ${METADATA.name}! Dapatkan skor Anda dan tingkatkan aktivitas on-chain sekarang. 🚀`;
+      
+      // 3. Encode URL dan Teks untuk dimasukkan ke link
+      const encodedText = encodeURIComponent(text);
+      const encodedEmbed = encodeURIComponent(appUrl);
+
+      // 4. Buka Deep Link Warpcast dengan parameter embeds[]
+      // Parameter embeds[] inilah yang memaksa preview Mini App muncul.
+      sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodedText}&embeds[]=${encodedEmbed}`);
   };
 
 
@@ -368,7 +369,7 @@ export default function Home() {
               <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatus}</p>
             )}
             
-            {/* ✅ BAGIAN TOMBOL ADD/SHARE BARU */}
+            {/* BAGIAN TOMBOL ADD/SHARE BARU */}
             <div className="flex justify-center gap-4 mt-6">
                 <button
                     onClick={handleAddMiniApp}
