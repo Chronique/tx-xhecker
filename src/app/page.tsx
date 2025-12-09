@@ -6,8 +6,8 @@ import { createPublicClient, http, parseEther } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search, Star, Share2 } from "lucide-react"; // ✅ Import ikon baru
-import { METADATA } from "~/lib/utils"; // ✅ Import METADATA untuk link dan nama App
+import { Search, Star, Share2 } from "lucide-react"; 
+import { METADATA } from "~/lib/utils"; 
 
 // --- KONSTANTA BLOCK EXPLORER ---
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
@@ -53,6 +53,7 @@ export default function Home() {
   
   const [txStatus, setTxStatus] = useState("");
   const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
+  const [isAdded, setIsAdded] = useState(false); // ✅ NEW STATE: Status App Added
 
   // 1. AUTO-DETECT USER 
   useEffect(() => {
@@ -165,7 +166,7 @@ export default function Home() {
                 
                 if (receipt.status === 'success') {
                     updateMyStats(address); 
-                    setTxStatus("Success! Your activity score has been boosted. (Tx Confirmed)"); 
+                    setTxStatus("Success! Your activity score has been boosted."); 
                 } else {
                     setTxStatus("Transaction failed on Base (Reverted).");
                 }
@@ -227,21 +228,25 @@ export default function Home() {
     setLoading(false);
   };
   
-  // ✅ FUNGSI BARU: ADD MINI APP
+  // ✅ FUNGSI BARU: ADD MINI APP (Sesuai Konsep User)
   const handleAddMiniApp = async () => {
       try {
-          await sdk.actions.addMiniApp();
+          await sdk.actions.addMiniApp(); 
+          setIsAdded(true); // Set state setelah sukses
+          alert(`App ${METADATA.name} added successfully! 🎉`);
       } catch (e) {
-          alert("Failed to add Mini App. Please try the menu option.");
+          alert("Failed to add Mini App. User might have cancelled or app is already added.");
           console.error("Add Mini App failed:", e);
       }
   };
 
-  // ✅ FUNGSI BARU: COMPOSE CAST / SHARE
+  // ✅ FUNGSI BARU: COMPOSE CAST / SHARE (Menggunakan format teks yang rapi)
   const handleShareCast = async () => {
+      // Menggunakan format teks yang bagus dari konsep user
       const shareText = `Check out my stats on the ${METADATA.name} mini app on Base! Get your score and boost your activity. 🚀\n\nLink: ${METADATA.homeUrl}`;
       
       try {
+          // Menggunakan SDK native composeCast untuk hasil yang lebih stabil
           await sdk.actions.composeCast({ 
               text: shareText,
           });
@@ -367,10 +372,11 @@ export default function Home() {
             <div className="flex justify-center gap-4 mt-6">
                 <button
                     onClick={handleAddMiniApp}
-                    className="flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-full font-bold text-white hover:bg-purple-700 transition active:scale-95 text-sm"
+                    disabled={isAdded} // Disable jika sudah ditambahkan
+                    className={`flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-full font-bold text-white transition active:scale-95 text-sm ${isAdded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-700'}`}
                 >
                     <Star className="w-4 h-4"/>
-                    Add Mini App
+                    {isAdded ? "Added!" : "Add Mini App"}
                 </button>
                 <button
                     onClick={handleShareCast}
@@ -424,6 +430,6 @@ export default function Home() {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }
