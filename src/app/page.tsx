@@ -6,10 +6,10 @@ import { createPublicClient, http, parseEther } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search } from "lucide-react"; 
+import { Search, Star, Share2 } from "lucide-react"; // ✅ Import ikon baru
+import { METADATA } from "~/lib/utils"; // ✅ Import METADATA untuk link dan nama App
 
 // --- KONSTANTA BLOCK EXPLORER ---
-// FIX: URL diarahkan ke halaman address Blockscout
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
 // --------------------------------
 
@@ -52,7 +52,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   
   const [txStatus, setTxStatus] = useState("");
-  // lastTxHash sekarang hanya untuk flag opsional di Wagmi, tidak dipakai di URL
   const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
 
   // 1. AUTO-DETECT USER 
@@ -166,8 +165,7 @@ export default function Home() {
                 
                 if (receipt.status === 'success') {
                     updateMyStats(address); 
-                    // ✅ FIX: Pesan sukses baru
-                    setTxStatus("Success! Your activity score has been boosted."); 
+                    setTxStatus("Success! Your activity score has been boosted. (Tx Confirmed)"); 
                 } else {
                     setTxStatus("Transaction failed on Base (Reverted).");
                 }
@@ -228,6 +226,35 @@ export default function Home() {
     
     setLoading(false);
   };
+  
+  // ✅ FUNGSI BARU: ADD MINI APP
+  const handleAddMiniApp = async () => {
+      try {
+          await sdk.actions.addMiniApp();
+      } catch (e) {
+          alert("Failed to add Mini App. Please try the menu option.");
+          console.error("Add Mini App failed:", e);
+      }
+  };
+
+  // ✅ FUNGSI BARU: COMPOSE CAST / SHARE
+  const handleShareCast = async () => {
+      const shareText = `Check out my stats on the ${METADATA.name} mini app on Base! Get your score and boost your activity. 🚀\n\nLink: ${METADATA.homeUrl}`;
+      
+      try {
+          await sdk.actions.composeCast({ 
+              text: shareText,
+          });
+      } catch (e) {
+          alert("Failed to open cast composer.");
+          console.error("Compose Cast failed:", e);
+      }
+  };
+
+
+  const explorerPath = isGaslessEnabled ? 'op/' : 'tx/';
+  const explorerName = isGaslessEnabled ? 'Blockscout (User Op)' : 'Blockscout (Standard Tx)';
+
 
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono">
@@ -309,12 +336,11 @@ export default function Home() {
               <span>📈 Increases Score</span>
             </p>
 
-            {/* ✅ LOGIC TAMPILAN FINAL SUKSES */}
+            {/* Area Status & Link */}
             {txStatus.includes("Success!") && address && (
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
                 <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p>
                 
-                {/* Link ke halaman address Blockscout */}
                 <a
                   href={`${BLOCK_EXPLORER_BASE_URL}address/${address}`}
                   target="_blank"
@@ -325,7 +351,6 @@ export default function Home() {
                   Check Transaction History on Blockscout
                 </a>
 
-                {/* Instruksi khusus untuk Smart Wallet (User Op) */}
                 {isGaslessEnabled && (
                   <p className="text-[10px] text-gray-500 mt-2">
                     Note: If using Base Wallet, check the **User Operations** tab for details.
@@ -334,11 +359,30 @@ export default function Home() {
               </div>
             )}
             
-            {/* Tampilkan status Pending / Failed */}
             {txStatus && !txStatus.includes("Success!") && (
               <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatus}</p>
             )}
             
+            {/* ✅ BAGIAN TOMBOL ADD/SHARE BARU */}
+            <div className="flex justify-center gap-4 mt-6">
+                <button
+                    onClick={handleAddMiniApp}
+                    className="flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-full font-bold text-white hover:bg-purple-700 transition active:scale-95 text-sm"
+                >
+                    <Star className="w-4 h-4"/>
+                    Add Mini App
+                </button>
+                <button
+                    onClick={handleShareCast}
+                    className="flex items-center gap-2 bg-blue-600 px-4 py-2 rounded-full font-bold text-white hover:bg-blue-700 transition active:scale-95 text-sm"
+                >
+                    <Share2 className="w-4 h-4"/>
+                    Share Stats
+                </button>
+            </div>
+            {/* AKHIR BAGIAN TOMBOL ADD/SHARE BARU */}
+
+
           </div>
         ) : (
           <div className="flex flex-col gap-2">
