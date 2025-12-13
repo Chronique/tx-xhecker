@@ -1,27 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useConnect } from "wagmi";
-// useSendCalls dari experimental untuk dukungan Builder Code
-import { useSendCalls } from "wagmi/experimental"; 
-import { createPublicClient, http, encodeFunctionData } from "viem";
+import { useAccount, useConnect, useSendTransaction } from "wagmi"; // Pakai useSendTransaction lagi
+import { createPublicClient, http, encodeFunctionData, concat } from "viem"; // Tambah 'concat'
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
 import { Search, Star, Share2 } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
-// Import Attribution dari library ox untuk Builder Code
-import { Attribution } from "ox/erc8021";
+import { Attribution } from "ox/erc8021"; // Library untuk generate suffix
 
 // --- KONFIGURASI BUILDER CODE ---
-// Pastikan kode ini sesuai dengan akun base.dev Anda
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
 // --------------------------------
 
-// --- BLOCK EXPLORER CONSTANTS ---
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
-
-// --- SMART CONTRACT CONFIGURATION ---
 const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF"; 
 
 const BOOST_ABI = [
@@ -43,13 +36,11 @@ const BOOST_ABI = [
   }
 ] as const;
 
-// 1. Base Client
 const publicClient = createPublicClient({
   chain: base,
   transport: http(),
 });
 
-// 2. Mainnet Client
 const mainnetClient = createPublicClient({
   chain: mainnet,
   transport: http(),
@@ -61,8 +52,8 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // Gunakan useSendCalls (Standard baru Base untuk atribusi)
-  const { sendCalls, isPending: isTxPending } = useSendCalls();
+  // KEMBALI KE useSendTransaction (Lebih Stabil di Farcaster)
+  const { sendTransaction, isPending: isTxPending } = useSendTransaction();
 
   // State
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -158,49 +149,52 @@ export default function Home() {
     }
   };
 
-  // --- FUNGSI BOOST DENGAN BUILDER CODE & ox/erc8021 ---
+  // --- FUNGSI BOOST DENGAN MANUAL ATTACH BUILDER CODE ---
   const handleBoostActivity = () => { 
     if (!address) return;
     
     setTxStatusMessage("Preparing transaction...");
     
     try {
-        // 1. Siapkan data calldata untuk fungsi 'boost()'
+        // 1. Generate data fungsi 'boost()' seperti biasa
         const calldata = encodeFunctionData({
             abi: BOOST_ABI,
             functionName: 'boost'
         });
 
-        // 2. Generate Suffix Atribusi
+        // 2. Generate Suffix dari Builder Code
         const dataSuffix = Attribution.toDataSuffix({
             codes: [MY_BUILDER_CODE] 
         });
 
-        // 3. Kirim menggunakan sendCalls
-        // Note: Kita menghapus 'value' karena defaultnya 0, untuk menghindari error BigInt serialization
-        sendCalls({
-          calls: [{
-            to: BOOST_CONTRACT_ADDRESS as `0x${string}`, 
-            data: calldata,
-          }],
-          capabilities: {
-            // Bagian ini penting agar Wallet menempelkan Builder Code Anda
-            dataSuffix: dataSuffix
-          }
+        // 3. GABUNGKAN MANUAL: Calldata + Suffix
+        // Ini triknya! Kita tempel sendiri agar tidak bergantung pada kemampuan wallet.
+        const finalData = concat([calldata, dataSuffix]);
+
+        // 4. Kirim pakai sendTransaction biasa (Pasti support semua wallet)
+        sendTransaction({
+          to: BOOST_CONTRACT_ADDRESS as `0x${string}`, 
+          data: finalData, // Data yang sudah ditempel suffix
         }, {
-          onSuccess: (id) => {
-            console.log("Tx ID:", id);
-            setTxStatusMessage("Success! Transaction submitted via Builder Code. 🚀");
-            setTimeout(() => { updateMyStats(address); }, 5000);
+          onSuccess: (hash) => {
+            setTxStatusMessage("Transaction submitted! Waiting confirmation...");
+            
+            const checkReceipt = async () => {
+                try {
+                    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+                    if (receipt.status === 'success') {
+                        setTxStatusMessage("Success! Activity Boosted & Attributed 🚀");
+                        updateMyStats(address);
+                    }
+                } catch (e) {
+                    setTxStatusMessage("Tx Sent, please check Explorer.");
+                }
+            };
+            checkReceipt();
           },
           onError: (error) => { 
             console.error("Boost Error:", error);
-            // Pesan error yang lebih user-friendly
-            if (error.message.includes("connector not found") || error.message.includes("capabilities")) {
-               setTxStatusMessage("Failed: Wallet not supported. Try on Warpcast Mobile.");
-            } else {
-               setTxStatusMessage(`Failed: ${error.message}`);
-            }
+            setTxStatusMessage(`Failed: ${error.message || 'Unknown error'}`);
           }
         });
     } catch (err: any) {
