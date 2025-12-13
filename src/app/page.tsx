@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useConnect, useDisconnect, useSendTransaction } from "wagmi";
+import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, parseEther } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
@@ -51,7 +51,7 @@ export default function Home() {
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  const [txStatusMessage, setTxStatusMessage] = useState(""); // Renamed from txStatus
+  const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [lastTxHash, setLastTxHash] = useState<string | null>(null); 
   const [isAdded, setIsAdded] = useState(false); 
 
@@ -107,7 +107,7 @@ export default function Home() {
         setIsVerified(false);
       }
     } catch (e) {
-      console.error("Failed to check Base verification:", e); // Translated
+      console.error("Failed to check Base verification:", e);
       setIsVerified(false);
     }
   };
@@ -140,22 +140,22 @@ export default function Home() {
         }
       }
     } catch (error) {
-      console.error("Failed to load data:", error); // Translated
+      console.error("Failed to load data:", error);
     }
   };
 
-  const handleBoostActivity = () => { // Renamed from handleBoost
+  const handleBoostActivity = () => { 
     if (!address) return;
     
     setLastTxHash(null);
-    setTxStatusMessage("Checking wallet..."); // Translated
+    setTxStatusMessage("Checking wallet...");
     
     sendTransaction({
       to: address, 
       value: parseEther("0"), 
     }, {
       onSuccess: (hash) => {
-        setTxStatusMessage("Transaction submitted! Waiting for Base confirmation..."); // Translated
+        setTxStatusMessage("Transaction submitted! Waiting for Base confirmation...");
 
         const checkReceipt = async () => {
             try {
@@ -166,13 +166,13 @@ export default function Home() {
                 
                 if (receipt.status === 'success') {
                     updateMyStats(address); 
-                    setTxStatusMessage("Success! Activity score has been boosted. (Tx Confirmed)"); // Translated
+                    setTxStatusMessage("Success! Activity score has been boosted. (Tx Confirmed)");
                 } else {
-                    setTxStatusMessage("Transaction failed on Base (Reverted)."); // Translated
+                    setTxStatusMessage("Transaction failed on Base (Reverted).");
                 }
             } catch (error) {
                 console.error("Confirmation Error:", error);
-                setTxStatusMessage("Confirmation timed out or failed. Please check Blockscout manually."); // Translated
+                setTxStatusMessage("Confirmation timed out or failed. Please check Blockscout manually.");
             }
         };
 
@@ -180,13 +180,13 @@ export default function Home() {
       },
       onError: (error) => { 
         console.error("Transaction Error:", error);
-        setTxStatusMessage(`Cancelled or failed: ${error.message || 'Unknown error'}`); // Translated
+        setTxStatusMessage(`Cancelled or failed: ${error.message || 'Unknown error'}`);
         setLastTxHash(null);
       }
     });
   };
 
-  const handleSearchAddress = async () => { // Renamed from handleCheckOther
+  const handleSearchAddress = async () => {
     let searchInput = targetAddress.trim();
     let finalAddress = searchInput;
 
@@ -232,35 +232,30 @@ export default function Home() {
       try {
           await sdk.actions.addMiniApp(); 
           setIsAdded(true); 
-          alert(`App ${METADATA.name} successfully added! 🎉`); // Translated
+          alert(`App ${METADATA.name} successfully added! 🎉`);
       } catch (e) {
-          alert("Failed to add Mini App. User might have cancelled or app is already added."); // Translated
+          alert("Failed to add Mini App. User might have cancelled or app is already added.");
           console.error("Add Mini App failed:", e);
       }
   };
 
   const handleShareCast = () => {
-      // Use METADATA for dynamic text and link
       const shareText = `Check out my stats on the ${METADATA.name} mini app on Base! Get your score and boost your activity. 🚀\n\nLink: ${METADATA.homeUrl}`;
-      
-      // Use encodeURIComponent for safe deep link construction
       const encodedText = encodeURIComponent(shareText);
       const encodedEmbed = encodeURIComponent(METADATA.homeUrl);
-
-      // Open Warpcast Deep Link with the embeds[] parameter
       sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodedText}&embeds[]=${encodedEmbed}`);
   };
 
-
-  const explorerPath = isGaslessEnabled ? 'op/' : 'tx/';
-  const explorerName = isGaslessEnabled ? 'Blockscout (User Op)' : 'Blockscout (Standard Tx)';
-
-
   return (
-    <div className="min-h-screen bg-black text-white p-6 font-mono">
-      <h1 className="text-3xl font-bold mb-6 text-blue-500 text-center">
-        BASE STATS CHECKER
-      </h1>
+    <div className="min-h-screen bg-black text-white p-6 font-mono overflow-x-hidden">
+      
+      {/* HEADER WITH COLOR-CHANGING MARQUEE ANIMATION */}
+      {/* Note: 'text-blue-500' removed to allow CSS animation to control color */}
+      <div className="mb-6 overflow-hidden w-full relative py-2">
+        <h1 className="text-3xl font-black whitespace-nowrap animate-marquee">
+          BASE STATS CHECKER • CHECK YOUR SCORE & BOOST ACTIVITY 
+        </h1>
+      </div>
 
       <div className="bg-gray-900 p-6 rounded-xl border border-blue-500 mb-6 shadow-lg shadow-blue-500/20">
         <div className="flex items-center justify-between mb-6">
@@ -297,7 +292,7 @@ export default function Home() {
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-widest">Total TXs</p> {/* Translated */}
+            <p className="text-xs text-gray-400 uppercase tracking-widest">Total TXs</p>
             <p className="text-3xl font-bold text-green-400 mt-1">
               {myTxCount !== null ? myTxCount : "..."}
             </p>
@@ -315,7 +310,7 @@ export default function Home() {
         {isConnected ? (
           <div className="text-center">
             <button
-              onClick={handleBoostActivity} // Renamed
+              onClick={handleBoostActivity}
               disabled={isTxPending}
               className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95 ${
                 isTxPending 
@@ -330,16 +325,16 @@ export default function Home() {
                   : "🔥 BOOST ACTIVITY (+1 TX)"
               }
             </button>
-            <p className="text-[10px] text-gray-500 mt-3 flex justify-center items-center gap-1">
-              <span>{isGaslessEnabled ? "✅ Gas Fee Sponsored" : "⛽ Gas only (~$0.01)"}</span>
-              <span>•</span>
-              <span>📈 Increases Score</span>
+            
+            {/* GAS FEE TEXT REMOVED, ONLY SCORE INFO LEFT */}
+            <p className="text-[10px] text-gray-500 mt-3 text-center">
+              📈 Increases Score
             </p>
 
             {/* Area Status & Link */}
             {txStatusMessage.includes("Success!") && address && (
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
-                <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p> {/* Translated */}
+                <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p>
                 
                 <a
                   href={`${BLOCK_EXPLORER_BASE_URL}address/${address}`}
@@ -348,7 +343,7 @@ export default function Home() {
                   className="text-xs text-blue-400 hover:text-blue-200 underline flex items-center justify-center gap-1"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  View Transaction History on Blockscout {/* Translated */}
+                  View Transaction History on Blockscout
                 </a>
 
                 {isGaslessEnabled && (
@@ -359,31 +354,32 @@ export default function Home() {
               </div>
             )}
             
-            {/* Tampilkan status Pending / Failed */}
             {txStatusMessage && !txStatusMessage.includes("Success!") && (
               <p className="text-sm text-yellow-400 mt-2 font-bold animate-pulse text-center">{txStatusMessage}</p>
             )}
             
-            {/* BAGIAN TOMBOL ADD/SHARE BARU */}
-            <div className="flex justify-center gap-4 mt-6">
-                <button
-                    onClick={handleAddMiniApp}
-                    disabled={isAdded} 
-                    className={`flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-full font-bold text-white transition active:scale-95 text-sm ${isAdded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-700'}`}
-                >
-                    <Star className="w-4 h-4"/>
-                    {isAdded ? "Added!" : "Add Mini App"}
-                </button>
-                <button
-                    onClick={handleShareCast}
-                    className="flex items-center gap-2 bg-blue-600 px-4 py-2 rounded-full font-bold text-white hover:bg-blue-700 transition active:scale-95 text-sm"
-                >
-                    <Share2 className="w-4 h-4"/>
-                    Share Stats
-                </button>
+            {/* MATERIAL DESIGN SPLIT BUTTON */}
+            <div className="flex justify-center mt-6">
+                <div className="inline-flex rounded-full shadow-lg bg-purple-600 overflow-hidden border border-purple-500/50" role="group">
+                    <button
+                        onClick={handleAddMiniApp}
+                        disabled={isAdded} 
+                        className={`flex items-center gap-2 px-6 py-3 font-bold text-white transition active:bg-purple-800 hover:bg-purple-700 text-sm ${isAdded ? 'opacity-70 cursor-not-allowed bg-purple-800' : ''}`}
+                    >
+                        <Star className="w-4 h-4 text-yellow-300"/>
+                        {isAdded ? "Added" : "Add Mini App"}
+                    </button>
+                    {/* DIVIDER */}
+                    <div className="w-px bg-white/30 my-2"></div>
+                    <button
+                        onClick={handleShareCast}
+                        className="flex items-center gap-2 px-6 py-3 font-bold text-white transition active:bg-purple-800 hover:bg-purple-700 text-sm"
+                    >
+                        <Share2 className="w-4 h-4"/>
+                        Share
+                    </button>
+                </div>
             </div>
-            {/* AKHIR BAGIAN TOMBOL ADD/SHARE BARU */}
-
 
           </div>
         ) : (
@@ -412,7 +408,7 @@ export default function Home() {
             onChange={(e) => setTargetAddress(e.target.value)}
           />
           <button
-            onClick={handleSearchAddress} // Renamed
+            onClick={handleSearchAddress} 
             disabled={loading}
             className="bg-gray-700 px-4 rounded-lg font-bold hover:bg-gray-600 disabled:opacity-50 flex items-center justify-center"
           >

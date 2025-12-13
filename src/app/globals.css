@@ -80,3 +80,35 @@ body {
     --radius: 0.5rem;
   }
 }
+
+@layer utilities {
+  .animate-marquee {
+    display: inline-block;
+    white-space: nowrap;
+    /* Durasi 8s agar tidak terlalu lambat, linear agar halus */
+    animation: marquee 8s linear infinite;
+    padding-left: 100%; /* Memulai teks dari luar layar kanan */
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+    color: #ffffff; /* Mulai: Putih */
+  }
+  35% {
+    color: #ffffff; /* Masih Putih saat bergerak masuk */
+  }
+  50% {
+    color: #0052ff; /* Tengah: Biru Khas Base */
+    text-shadow: 0 0 15px rgba(0, 82, 255, 0.5); /* Efek Glow Biru */
+  }
+  65% {
+    color: #ffffff; /* Kembali Putih saat bergerak keluar */
+    text-shadow: none;
+  }
+  100% {
+    transform: translateX(-100%);
+    color: #ffffff; /* Selesai: Putih */
+  }
+}
