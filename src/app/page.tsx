@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useConnect } from "wagmi";
-// useSendCalls biasanya ada di experimental untuk Wagmi v2
+// useSendCalls dari experimental untuk dukungan Builder Code
 import { useSendCalls } from "wagmi/experimental"; 
 import { createPublicClient, http, encodeFunctionData } from "viem";
 import { base, mainnet } from "viem/chains"; 
@@ -10,16 +10,16 @@ import { normalize } from 'viem/ens';
 import sdk from "@farcaster/frame-sdk";
 import { Search, Star, Share2 } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
-// Import Attribution dari library ox sesuai contoh
+// Import Attribution dari library ox untuk Builder Code
 import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI BUILDER CODE ---
+// Pastikan kode ini sesuai dengan akun base.dev Anda
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
 // --------------------------------
 
 // --- BLOCK EXPLORER CONSTANTS ---
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
-// --------------------------------
 
 // --- SMART CONTRACT CONFIGURATION ---
 const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF"; 
@@ -61,21 +61,18 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // GANTI useSendTransaction DENGAN useSendCalls
+  // Gunakan useSendCalls (Standard baru Base untuk atribusi)
   const { sendCalls, isPending: isTxPending } = useSendCalls();
 
   // State
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
-  
   const [myTxCount, setMyTxCount] = useState<number | null>(null);
   const [neynarScore, setNeynarScore] = useState<string>("Loading...");
   const [isVerified, setIsVerified] = useState(false);
-  
   const [targetAddress, setTargetAddress] = useState("");
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
 
@@ -122,7 +119,6 @@ export default function Home() {
           },
         }),
       });
-
       const result = await response.json();
       if (result.data.attestations && result.data.attestations.length > 0) {
         setIsVerified(true);
@@ -139,13 +135,11 @@ export default function Home() {
     try {
       const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
       if (!apiKey) return;
-
       const res = await fetch(
         `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
         { headers: { accept: "application/json", api_key: apiKey } }
       );
       const data = await res.json();
-
       if (data.users && data.users[0]) {
         const user = data.users[0];
         if (user.score) {
@@ -168,7 +162,7 @@ export default function Home() {
   const handleBoostActivity = () => { 
     if (!address) return;
     
-    setTxStatusMessage("Preparing transaction with Builder Code...");
+    setTxStatusMessage("Preparing transaction...");
     
     try {
         // 1. Siapkan data calldata untuk fungsi 'boost()'
@@ -177,37 +171,41 @@ export default function Home() {
             functionName: 'boost'
         });
 
-        // 2. Kirim menggunakan sendCalls dengan capabilities Attribution
-        // Ini sesuai dengan contoh yang Anda berikan
+        // 2. Generate Suffix Atribusi
+        const dataSuffix = Attribution.toDataSuffix({
+            codes: [MY_BUILDER_CODE] 
+        });
+
+        // 3. Kirim menggunakan sendCalls
+        // Note: Kita menghapus 'value' karena defaultnya 0, untuk menghindari error BigInt serialization
         sendCalls({
           calls: [{
             to: BOOST_CONTRACT_ADDRESS as `0x${string}`, 
             data: calldata,
-            value: BigInt(0), // Kirim 0 ETH
           }],
           capabilities: {
-            // Generate Suffix secara langsung seperti di contoh
-            dataSuffix: Attribution.toDataSuffix({
-                codes: [MY_BUILDER_CODE] // ["bc_2ivoo1oy"]
-            })
+            // Bagian ini penting agar Wallet menempelkan Builder Code Anda
+            dataSuffix: dataSuffix
           }
         }, {
           onSuccess: (id) => {
+            console.log("Tx ID:", id);
             setTxStatusMessage("Success! Transaction submitted via Builder Code. 🚀");
-            
-            // Refresh stats setelah 5 detik
-            setTimeout(() => {
-                updateMyStats(address);
-            }, 5000);
+            setTimeout(() => { updateMyStats(address); }, 5000);
           },
           onError: (error) => { 
-            console.error("Transaction Error:", error);
-            setTxStatusMessage(`Cancelled or failed: ${error.message || 'Unknown error'}`);
+            console.error("Boost Error:", error);
+            // Pesan error yang lebih user-friendly
+            if (error.message.includes("connector not found") || error.message.includes("capabilities")) {
+               setTxStatusMessage("Failed: Wallet not supported. Try on Warpcast Mobile.");
+            } else {
+               setTxStatusMessage(`Failed: ${error.message}`);
+            }
           }
         });
-    } catch (err) {
-        console.error("Encoding Error:", err);
-        setTxStatusMessage("Failed to prepare transaction.");
+    } catch (err: any) {
+        console.error("Logic Error:", err);
+        setTxStatusMessage(`Error: ${err.message}`);
     }
   };
 
@@ -216,7 +214,6 @@ export default function Home() {
     let finalAddress = searchInput;
     setLoading(true);
     setOtherTxCount(null); 
-
     try {
       if (searchInput.toLowerCase().endsWith(".eth")) {
         const resolvedAddr = await mainnetClient.getEnsAddress({ name: normalize(searchInput) });
@@ -228,9 +225,7 @@ export default function Home() {
       }
       const count = await publicClient.getTransactionCount({ address: finalAddress as `0x${string}` });
       setOtherTxCount(count);
-    } catch (err) { 
-      console.error(err); alert("Error fetching data.");
-    }
+    } catch (err) { console.error(err); alert("Error fetching data."); }
     setLoading(false);
   };
   
