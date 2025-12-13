@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, useSendTransaction } from "wagmi";
-import { createPublicClient, http, parseEther } from "viem";
+import { createPublicClient, http, parseEther, encodeFunctionData } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
@@ -17,6 +17,39 @@ const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/";
 const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 const isGaslessEnabled = !!PAYMASTER_URL;
 // -------------------------
+
+// --- SMART CONTRACT CONFIGURATION ---
+const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF"; 
+
+const BOOST_ABI = [
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "Boosted",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "boost",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+] as const;
+// ------------------------------------
 
 // 1. Base Client
 const publicClient = createPublicClient({
@@ -144,46 +177,58 @@ export default function Home() {
     }
   };
 
+  // --- SMART CONTRACT BOOST FUNCTION ---
   const handleBoostActivity = () => { 
     if (!address) return;
     
     setLastTxHash(null);
-    setTxStatusMessage("Checking wallet...");
+    setTxStatusMessage("Interacting with Smart Contract...");
     
-    sendTransaction({
-      to: address, 
-      value: parseEther("0"), 
-    }, {
-      onSuccess: (hash) => {
-        setTxStatusMessage("Transaction submitted! Waiting for Base confirmation...");
+    try {
+        const data = encodeFunctionData({
+            abi: BOOST_ABI,
+            functionName: 'boost'
+        });
 
-        const checkReceipt = async () => {
-            try {
-                const receipt = await publicClient.waitForTransactionReceipt({ 
-                    hash: hash as `0x${string}`,
-                    timeout: 60_000 
-                });
-                
-                if (receipt.status === 'success') {
-                    updateMyStats(address); 
-                    setTxStatusMessage("Success! Activity score has been boosted. (Tx Confirmed)");
-                } else {
-                    setTxStatusMessage("Transaction failed on Base (Reverted).");
+        sendTransaction({
+          to: BOOST_CONTRACT_ADDRESS as `0x${string}`, 
+          data: data,
+          value: parseEther("0"), 
+        }, {
+          onSuccess: (hash) => {
+            setTxStatusMessage("Transaction submitted! Waiting for confirmation...");
+
+            const checkReceipt = async () => {
+                try {
+                    const receipt = await publicClient.waitForTransactionReceipt({ 
+                        hash: hash as `0x${string}`,
+                        timeout: 60_000 
+                    });
+                    
+                    if (receipt.status === 'success') {
+                        updateMyStats(address); 
+                        setTxStatusMessage("Success! Contract Interaction confirmed. Score boosted! 🚀");
+                    } else {
+                        setTxStatusMessage("Transaction failed on Base (Reverted).");
+                    }
+                } catch (error) {
+                    console.error("Confirmation Error:", error);
+                    setTxStatusMessage("Confirmation timed out or failed. Please check Blockscout manually.");
                 }
-            } catch (error) {
-                console.error("Confirmation Error:", error);
-                setTxStatusMessage("Confirmation timed out or failed. Please check Blockscout manually.");
-            }
-        };
+            };
 
-        checkReceipt();
-      },
-      onError: (error) => { 
-        console.error("Transaction Error:", error);
-        setTxStatusMessage(`Cancelled or failed: ${error.message || 'Unknown error'}`);
-        setLastTxHash(null);
-      }
-    });
+            checkReceipt();
+          },
+          onError: (error) => { 
+            console.error("Transaction Error:", error);
+            setTxStatusMessage(`Cancelled or failed: ${error.message || 'Unknown error'}`);
+            setLastTxHash(null);
+          }
+        });
+    } catch (err) {
+        console.error("Encoding Error:", err);
+        setTxStatusMessage("Failed to prepare transaction.");
+    }
   };
 
   const handleSearchAddress = async () => {
@@ -250,10 +295,9 @@ export default function Home() {
     <div className="min-h-screen bg-black text-white p-6 font-mono overflow-x-hidden">
       
       {/* HEADER WITH COLOR-CHANGING MARQUEE ANIMATION */}
-      {/* Note: 'text-blue-500' removed to allow CSS animation to control color */}
       <div className="mb-6 overflow-hidden w-full relative py-2">
         <h1 className="text-3xl font-black whitespace-nowrap animate-marquee">
-          BASE STATS CHECKER • CHECK YOUR SCORE & BOOST ACTIVITY 
+          BASE STATS CHECKER • CHECK YOUR SCORE & BOOST ACTIVITY
         </h1>
       </div>
 
@@ -321,20 +365,21 @@ export default function Home() {
               {isTxPending 
                 ? "Confirming..." 
                 : isGaslessEnabled 
-                  ? "🔥 BOOST ACTIVITY (Gas Free)"
-                  : "🔥 BOOST ACTIVITY (+1 TX)"
+                  ? " BOOST ACTIVITY "
+                  : " BOOST ACTIVITY (Smart Contract)"
               }
             </button>
             
-            {/* GAS FEE TEXT REMOVED, ONLY SCORE INFO LEFT */}
-            <p className="text-[10px] text-gray-500 mt-3 text-center">
-              📈 Increases Score
+            {/* NOTE SECTION ADDED HERE */}
+            <p className="text-[10px] text-gray-500 mt-3 text-center max-w-sm mx-auto leading-relaxed">
+              Note: Boost activity is experimental to increase Neynar score. 
+              Contract is verified on <a href="https://base.blockscout.com/address/0x285E7E937059f93dAAF6845726e60CD22A865caF?tab=contract" target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300 transition">Blockscout</a>.
             </p>
 
             {/* Area Status & Link */}
             {txStatusMessage.includes("Success!") && address && (
               <div className="mt-4 p-3 bg-gray-700 rounded-lg text-center shadow-md">
-                <p className="text-sm font-bold text-green-400 mb-2">Success! Activity boosted. (Confirmed)</p>
+                <p className="text-sm font-bold text-green-400 mb-2">{txStatusMessage}</p>
                 
                 <a
                   href={`${BLOCK_EXPLORER_BASE_URL}address/${address}`}
