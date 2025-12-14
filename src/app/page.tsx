@@ -6,14 +6,16 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint, AlertTriangle } from "lucide-react"; 
+import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint, AlertTriangle, Hammer, Code2 } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
+// Pastikan variabel ini ada di .env.local
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
+const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; // NEW: Talent Protocol Key
 // --------------------
 
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
@@ -48,6 +50,7 @@ export default function Home() {
   // Stats
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
+  const [talentScore, setTalentScore] = useState<string | null>(null); // NEW
   const [isVerified, setIsVerified] = useState(false);
   
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
@@ -102,48 +105,53 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (MULTIPLE WALLETS) ---
+  // --- LOGIC: GITCOIN SCORE ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
-        setGitcoinScore(null); 
-        return;
+        setGitcoinScore(null); return;
     }
+    try {
+        const scorePromises = addresses.map(async (addr) => {
+            const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${addr}`, {
+                headers: { "X-API-Key": GITCOIN_API_KEY }
+            });
+            const data = await response.json();
+            return data.score ? parseFloat(data.score) : 0;
+        });
+        const scores = await Promise.all(scorePromises);
+        const maxScore = Math.max(...scores);
+        setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : "0.00");
+    } catch (e) {
+        setGitcoinScore(null); 
+    }
+  };
+
+  // --- LOGIC: TALENT PROTOCOL SCORE (NEW) ---
+  const fetchTalentScore = async (addresses: string[]) => {
+    if (!TALENT_API_KEY) {
+        setTalentScore(null); return;
+    }
+    
+    // Talent API bisa menerima wallet address langsung
+    const targetAddr = addresses[0]; // Cek alamat utama dulu
 
     try {
-        // Cek semua alamat secara paralel
-        const scorePromises = addresses.map(async (addr) => {
-            try {
-                const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${addr}`, {
-                    headers: { 
-                        "X-API-Key": GITCOIN_API_KEY,
-                        "Content-Type": "application/json"
-                    }
-                });
-                if (!response.ok) return 0;
-                const data = await response.json();
-                // API mengembalikan { score: "12.34", ... } atau { items: [...] } tergantung versi
-                // Kita coba parse dengan aman
-                const rawScore = data.score || (data.items && data.items[0]?.score);
-                return rawScore ? parseFloat(rawScore) : 0;
-            } catch (e) {
-                return 0;
-            }
+        const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
+            headers: { "X-API-KEY": TALENT_API_KEY }
         });
-
-        const scores = await Promise.all(scorePromises);
+        const data = await response.json();
         
-        // Ambil skor tertinggi dari semua wallet yang terhubung
-        const maxScore = Math.max(...scores);
-
-        // Jika skor > 0, tampilkan. Jika 0, set null agar muncul tombol "Check/Create Passport"
-        if (maxScore > 0) {
-            setGitcoinScore(maxScore.toFixed(2));
+        // Cari "builder_score" dari response
+        const builderScore = data.scores?.find((s: any) => s.slug === "builder_score");
+        
+        if (builderScore) {
+            setTalentScore(builderScore.points.toString());
         } else {
-            setGitcoinScore(null); // Set null agar UI menampilkan tombol link
+            setTalentScore("0");
         }
     } catch (e) {
-        console.error("Gitcoin fetch error:", e);
-        setGitcoinScore(null); 
+        console.error("Talent fetch error:", e);
+        setTalentScore(null);
     }
   };
 
@@ -168,6 +176,7 @@ export default function Home() {
         if (allAddresses.length > 0) {
             checkCoinbaseVerification(allAddresses);
             fetchGitcoinScore(allAddresses);
+            fetchTalentScore(allAddresses); // Panggil fungsi baru
         }
       }
     } catch (error) { console.error("Load error:", error); }
@@ -200,7 +209,7 @@ export default function Home() {
   };
 
   const handleShareCast = () => {
-      const shareText = `Check my reputation on Base! 🛡️\n\nNeynar Score: ${neynarScore}\nGitcoin Score: ${gitcoinScore || "N/A"}\nVerified: ${isVerified ? "✅" : "❌"}\n\n${METADATA.homeUrl}`;
+      const shareText = `Check my reputation on Base! 🛡️\n\nNeynar Score: ${neynarScore}\nTalent Score: ${talentScore || "N/A"}\nVerified: ${isVerified ? "✅" : "❌"}\n\n${METADATA.homeUrl}`;
       const encodedText = encodeURIComponent(shareText);
       const encodedEmbed = encodeURIComponent(METADATA.homeUrl);
       sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodedText}&embeds[]=${encodedEmbed}`);
@@ -238,44 +247,64 @@ export default function Home() {
         {/* --- GRID SCORES --- */}
         <div className="grid grid-cols-2 gap-4 mb-6">
              
-             {/* Neynar Score */}
-             <div className="p-4 bg-gray-800 rounded-lg text-center border border-blue-500/30 flex flex-col justify-center items-center h-32 relative overflow-hidden">
+             {/* Kiri: Neynar Score */}
+             <div className="p-4 bg-gray-800 rounded-lg text-center border border-blue-500/30 flex flex-col justify-center items-center h-40 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8"></div>
                 <div className="flex items-center gap-1 mb-2">
-                    <Zap className="w-3 h-3 text-blue-400" />
+                    <Zap className="w-4 h-4 text-blue-400" />
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest">Neynar Score</p>
                 </div>
-                <p className="text-3xl font-bold text-blue-400">{neynarScore}</p>
+                <p className="text-4xl font-bold text-blue-400">{neynarScore}</p>
              </div>
 
-             {/* Gitcoin Score */}
-             <div className="p-4 bg-gray-800 rounded-lg text-center border border-orange-500/30 flex flex-col justify-center items-center h-32 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-16 h-16 bg-orange-500/10 rounded-bl-full -mr-8 -mt-8"></div>
-                <div className="flex items-center gap-1 mb-2">
-                    <ShieldCheck className="w-3 h-3 text-orange-400" />
-                    <p className="text-[10px] text-gray-400 uppercase tracking-widest">Gitcoin Score</p>
-                </div>
+             {/* Kanan: Stacked Scores (Talent & Gitcoin) */}
+             <div className="flex flex-col gap-3">
                 
-                {/* LOGIKA TAMPILAN: Jika ada skor -> Tampilkan Angka. Jika tidak -> Tombol Create */}
-                {gitcoinScore ? (
-                    <p className="text-3xl font-bold text-orange-400">{gitcoinScore}</p>
-                ) : (
-                    <div className="flex flex-col items-center gap-1">
-                        <p className="text-xl font-bold text-gray-600">0.00</p>
-                        <a href="https://passport.gitcoin.co/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-orange-400 border border-orange-500/50 px-2 py-1 rounded-full hover:bg-orange-500/10 transition">
-                            Create Passport <ExternalLink className="w-2 h-2"/>
-                        </a>
+                {/* Talent Protocol Score */}
+                <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-purple-500/30 flex flex-col justify-center relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-1">
+                        <div className="flex items-center gap-1">
+                            <Code2 className="w-3 h-3 text-purple-400" />
+                            <p className="text-[10px] text-gray-400 uppercase tracking-widest">Builder Score</p>
+                        </div>
+                        {/* Link ke Talent jika belum ada skor */}
+                        {!talentScore && (
+                            <a href="https://talentprotocol.com/" target="_blank" className="text-[8px] bg-purple-900/50 px-1.5 py-0.5 rounded border border-purple-500/30 text-purple-300">Create</a>
+                        )}
                     </div>
-                )}
-             </div>
+                    {talentScore ? (
+                        <p className="text-2xl font-bold text-purple-400">{talentScore}</p>
+                    ) : (
+                        <p className="text-lg font-bold text-gray-600">0</p>
+                    )}
+                </div>
 
+                {/* Gitcoin Score */}
+                <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-orange-500/30 flex flex-col justify-center relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-1">
+                        <div className="flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-orange-400" />
+                            <p className="text-[10px] text-gray-400 uppercase tracking-widest">Gitcoin Score</p>
+                        </div>
+                        {!gitcoinScore && (
+                            <a href="https://passport.gitcoin.co/" target="_blank" className="text-[8px] bg-orange-900/50 px-1.5 py-0.5 rounded border border-orange-500/30 text-orange-300">Create</a>
+                        )}
+                    </div>
+                    {gitcoinScore ? (
+                        <p className="text-2xl font-bold text-orange-400">{gitcoinScore}</p>
+                    ) : (
+                        <p className="text-lg font-bold text-gray-600">0.00</p>
+                    )}
+                </div>
+
+             </div>
         </div>
 
         {/* --- TOMBOL AKSI --- */}
         {isConnected ? (
           <div className="space-y-6">
             
-            {/* 1. TOMBOL VERIFIKASI (Base) */}
+            {/* 1. TOMBOL VERIFIKASI */}
             <div>
                 {isVerified ? (
                     <a 
@@ -296,7 +325,6 @@ export default function Home() {
                         >
                             <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
                             <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
-                            
                             <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
                                 <Fingerprint className="w-5 h-5 text-blue-400 group-hover:text-white" />
                                 VERIFY IDENTITY ON BASE
@@ -324,7 +352,7 @@ export default function Home() {
                 <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                 <span className="relative z-20 flex items-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200 transition-colors">
                     <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
-                    {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
+                    {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
                 </span>
                 </button>
 
