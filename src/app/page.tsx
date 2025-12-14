@@ -112,11 +112,22 @@ export default function Home() {
     try {
         // Cek semua alamat secara paralel
         const scorePromises = addresses.map(async (addr) => {
-            const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${addr}`, {
-                headers: { "X-API-Key": GITCOIN_API_KEY }
-            });
-            const data = await response.json();
-            return data.score ? parseFloat(data.score) : 0;
+            try {
+                const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${addr}`, {
+                    headers: { 
+                        "X-API-Key": GITCOIN_API_KEY,
+                        "Content-Type": "application/json"
+                    }
+                });
+                if (!response.ok) return 0;
+                const data = await response.json();
+                // API mengembalikan { score: "12.34", ... } atau { items: [...] } tergantung versi
+                // Kita coba parse dengan aman
+                const rawScore = data.score || (data.items && data.items[0]?.score);
+                return rawScore ? parseFloat(rawScore) : 0;
+            } catch (e) {
+                return 0;
+            }
         });
 
         const scores = await Promise.all(scorePromises);
@@ -124,10 +135,11 @@ export default function Home() {
         // Ambil skor tertinggi dari semua wallet yang terhubung
         const maxScore = Math.max(...scores);
 
+        // Jika skor > 0, tampilkan. Jika 0, set null agar muncul tombol "Check/Create Passport"
         if (maxScore > 0) {
             setGitcoinScore(maxScore.toFixed(2));
         } else {
-            setGitcoinScore("0.00");
+            setGitcoinScore(null); // Set null agar UI menampilkan tombol link
         }
     } catch (e) {
         console.error("Gitcoin fetch error:", e);
@@ -243,12 +255,17 @@ export default function Home() {
                     <ShieldCheck className="w-3 h-3 text-orange-400" />
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest">Gitcoin Score</p>
                 </div>
-                {gitcoinScore !== null ? (
+                
+                {/* LOGIKA TAMPILAN: Jika ada skor -> Tampilkan Angka. Jika tidak -> Tombol Create */}
+                {gitcoinScore ? (
                     <p className="text-3xl font-bold text-orange-400">{gitcoinScore}</p>
                 ) : (
-                    <a href="https://passport.gitcoin.co/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-orange-400 underline decoration-dotted border border-orange-500/50 px-3 py-1.5 rounded-full hover:bg-orange-500/10 transition">
-                        Check Passport <ExternalLink className="w-3 h-3"/>
-                    </a>
+                    <div className="flex flex-col items-center gap-1">
+                        <p className="text-xl font-bold text-gray-600">0.00</p>
+                        <a href="https://passport.gitcoin.co/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-orange-400 border border-orange-500/50 px-2 py-1 rounded-full hover:bg-orange-500/10 transition">
+                            Create Passport <ExternalLink className="w-2 h-2"/>
+                        </a>
+                    </div>
                 )}
              </div>
 
