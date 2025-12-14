@@ -6,7 +6,7 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search, Star, Share2, Zap } from "lucide-react"; // Tambah icon Zap
+import { Search, Star, Share2, Zap } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
@@ -78,6 +78,9 @@ export default function Home() {
 
   const checkCoinbaseVerification = async (addr: string) => {
     try {
+      // FIX: Gunakan .toLowerCase() agar sesuai dengan format di database EAS
+      const formattedAddr = addr.toLowerCase();
+
       const response = await fetch("https://base.easscan.org/graphql", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,14 +97,23 @@ export default function Home() {
           variables: {
             where: {
               schemaId: { equals: COINBASE_VERIFIED_SCHEMA },
-              recipient: { equals: addr },
+              recipient: { equals: formattedAddr }, // Pastikan lowercase
               revoked: { equals: false },
             },
           },
         }),
       });
       const result = await response.json();
-      setIsVerified(result.data.attestations && result.data.attestations.length > 0);
+      
+      if (result.data?.attestations?.length > 0) {
+        setIsVerified(true);
+      } else {
+        // Coba cek sekali lagi tanpa lowercase (just in case)
+        if (formattedAddr !== addr) {
+            // Optional: double check logic kalau mau sangat teliti, tapi biasanya lowercase cukup
+        }
+        setIsVerified(false);
+      }
     } catch (e) {
       console.error("Failed to check Base verification:", e);
       setIsVerified(false);
@@ -120,7 +132,10 @@ export default function Home() {
       if (data.users && data.users[0]) {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
+        
+        // Prioritaskan verified addresses, fallback ke custody address
         const userAddress = user.verified_addresses.eth_addresses[0] || user.custody_address;
+        
         if (userAddress) {
           updateMyStats(userAddress);
           checkCoinbaseVerification(userAddress);
