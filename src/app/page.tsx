@@ -6,7 +6,7 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search, Star, Share2, Zap, CheckCircle2, XCircle, Clock, Users, UserPlus, Wallet } from "lucide-react"; 
+import { Search, Star, Share2, Zap, CheckCircle2, XCircle, Clock, MessageSquare, Heart, Repeat, Wallet } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
@@ -53,8 +53,11 @@ export default function Home() {
   const [myTxCount, setMyTxCount] = useState<number | null>(null);
   const [neynarScore, setNeynarScore] = useState<string>("Loading...");
   const [isVerified, setIsVerified] = useState(false);
-  const [followerCount, setFollowerCount] = useState<number | null>(null);
-  const [followingCount, setFollowingCount] = useState<number | null>(null);
+  
+  // Daily Stats (New!)
+  const [dailyPosts, setDailyPosts] = useState<number | null>(null);
+  const [dailyLikes, setDailyLikes] = useState<number | null>(null);
+  const [dailyRecasts, setDailyRecasts] = useState<number | null>(null);
 
   // Search & Status
   const [targetAddress, setTargetAddress] = useState("");
@@ -135,6 +138,50 @@ export default function Home() {
     }
   };
 
+  // --- LOGIC BARU: DAILY FARCASTER STATS ---
+  const fetchDailyFarcasterStats = async (fid: number) => {
+    const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+    if (!apiKey) return;
+
+    try {
+        // 1. Tentukan awal hari ini (00:00 UTC) dalam format ISO string untuk filter (atau manual filter)
+        // Neynar API biasanya return timestamp, jadi kita hitung manual
+        const now = new Date();
+        const startOfDayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        const startOfDayTimestamp = startOfDayUTC.getTime(); // ms
+
+        const headers = { accept: "application/json", api_key: apiKey };
+
+        // A. Fetch Posts (Casts)
+        // Kita ambil 50 post terakhir, lalu filter yang hari ini
+        const postsRes = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${fid}&limit=50&include_replies=true`, { headers });
+        const postsData = await postsRes.json();
+        if (postsData.casts) {
+            const todayPosts = postsData.casts.filter((c: any) => new Date(c.timestamp).getTime() > startOfDayTimestamp);
+            setDailyPosts(todayPosts.length);
+        }
+
+        // B. Fetch Likes (Reactions type=like)
+        const likesRes = await fetch(`https://api.neynar.com/v2/farcaster/reactions/user?fid=${fid}&type=like&limit=50`, { headers });
+        const likesData = await likesRes.json();
+        if (likesData.reactions) {
+            const todayLikes = likesData.reactions.filter((r: any) => new Date(r.timestamp).getTime() > startOfDayTimestamp);
+            setDailyLikes(todayLikes.length);
+        }
+
+        // C. Fetch Recasts (Reactions type=recast)
+        const recastsRes = await fetch(`https://api.neynar.com/v2/farcaster/reactions/user?fid=${fid}&type=recast&limit=50`, { headers });
+        const recastsData = await recastsRes.json();
+        if (recastsData.reactions) {
+            const todayRecasts = recastsData.reactions.filter((r: any) => new Date(r.timestamp).getTime() > startOfDayTimestamp);
+            setDailyRecasts(todayRecasts.length);
+        }
+
+    } catch (e) {
+        console.error("Failed to fetch daily stats:", e);
+    }
+  };
+
   // --- FETCH DATA UTAMA ---
   const fetchAddressAndStats = async (fid: number) => {
     try {
@@ -149,12 +196,12 @@ export default function Home() {
       if (data.users && data.users[0]) {
         const user = data.users[0];
         
-        // 1. Ambil Data Farcaster
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
-        setFollowerCount(user.follower_count || 0);
-        setFollowingCount(user.following_count || 0);
         
-        // 2. Ambil Data Wallet
+        // Panggil fungsi statistik harian
+        fetchDailyFarcasterStats(fid);
+        
+        // Cek data onchain
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
@@ -295,32 +342,37 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- GRID UTAMA YANG DIBALIK --- */}
+        {/* --- GRID UTAMA --- */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           
-          {/* KOLOM KIRI: FARCASTER (Social + Wallet) */}
+          {/* KOLOM KIRI: FARCASTER (Daily Stats + Wallet Activity) */}
           <div className="space-y-4">
-             {/* Farcaster Header */}
+             {/* Header */}
              <div className="flex items-center gap-2 mb-[-8px] px-1">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <p className="text-[10px] text-purple-300 uppercase tracking-widest">Farcaster</p>
+                <p className="text-[10px] text-purple-300 uppercase tracking-widest">Daily Activity (UTC)</p>
              </div>
 
-             {/* Followers & Following */}
-             <div className="grid grid-cols-2 gap-2">
-                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
-                    <Users className="w-4 h-4 text-gray-400 mx-auto mb-1" />
-                    <p className="text-[9px] text-gray-500 uppercase">Followers</p>
-                    <p className="text-sm font-bold text-white">{followerCount !== null ? followerCount : "-"}</p>
+             {/* Daily Stats Grid */}
+             <div className="grid grid-cols-3 gap-1">
+                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center flex flex-col items-center">
+                    <MessageSquare className="w-3 h-3 text-gray-400 mb-1" />
+                    <p className="text-[8px] text-gray-500 uppercase">Posts</p>
+                    <p className="text-xs font-bold text-white">{dailyPosts !== null ? dailyPosts : "-"}</p>
                 </div>
-                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
-                    <UserPlus className="w-4 h-4 text-gray-400 mx-auto mb-1" />
-                    <p className="text-[9px] text-gray-500 uppercase">Following</p>
-                    <p className="text-sm font-bold text-white">{followingCount !== null ? followingCount : "-"}</p>
+                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center flex flex-col items-center">
+                    <Heart className="w-3 h-3 text-gray-400 mb-1" />
+                    <p className="text-[8px] text-gray-500 uppercase">Likes</p>
+                    <p className="text-xs font-bold text-white">{dailyLikes !== null ? dailyLikes : "-"}</p>
+                </div>
+                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center flex flex-col items-center">
+                    <Repeat className="w-3 h-3 text-gray-400 mb-1" />
+                    <p className="text-[8px] text-gray-500 uppercase">Reposts</p>
+                    <p className="text-xs font-bold text-white">{dailyRecasts !== null ? dailyRecasts : "-"}</p>
                 </div>
              </div>
 
-             {/* 24h Transactions (Wallet Activity) */}
+             {/* 24h Transactions */}
              <div className="p-3 bg-gray-800/80 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between mb-1">
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest">24h Wallet TXs</p>
@@ -329,13 +381,12 @@ export default function Home() {
                 <p className="text-2xl font-bold text-white">
                     {myTxCount !== null ? myTxCount : <span className="animate-pulse text-gray-600">...</span>}
                 </p>
-                <p className="text-[9px] text-gray-500 text-right mt-[-4px]">Onchain Activity</p>
              </div>
           </div>
 
-          {/* KOLOM KANAN: BASE (Identity/Score) */}
+          {/* KOLOM KANAN: BASE IDENTITY */}
           <div className="space-y-4">
-             {/* Base Header */}
+             {/* Header */}
              <div className="flex items-center gap-2 mb-[-8px] px-1">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <p className="text-[10px] text-blue-300 uppercase tracking-widest">Base Identity</p>
