@@ -6,7 +6,7 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint, AlertTriangle, Hammer, Code2 } from "lucide-react"; 
+import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint, AlertTriangle, Code2 } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
@@ -15,7 +15,7 @@ const MY_BUILDER_CODE = "bc_2ivoo1oy";
 // Pastikan variabel ini ada di .env.local
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
-const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; // NEW: Talent Protocol Key
+const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
 // --------------------
 
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
@@ -50,7 +50,7 @@ export default function Home() {
   // Stats
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
-  const [talentScore, setTalentScore] = useState<string | null>(null); // NEW
+  const [talentScore, setTalentScore] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
@@ -105,49 +105,69 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE ---
+  // --- LOGIC: GITCOIN SCORE (API V2) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
         setGitcoinScore(null); return;
     }
+
     try {
+        // Cek semua alamat secara paralel menggunakan API V2 (passport.xyz)
         const scorePromises = addresses.map(async (addr) => {
-            const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${addr}`, {
-                headers: { "X-API-Key": GITCOIN_API_KEY }
-            });
-            const data = await response.json();
-            return data.score ? parseFloat(data.score) : 0;
+            try {
+                const response = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, {
+                    headers: { 
+                        "X-API-Key": GITCOIN_API_KEY,
+                        "Content-Type": "application/json"
+                    }
+                });
+                if (!response.ok) return 0;
+                const data = await response.json();
+                
+                // Struktur V2: { score: "12.34", ... }
+                return data.score ? parseFloat(data.score) : 0;
+            } catch (e) {
+                return 0;
+            }
         });
+
         const scores = await Promise.all(scorePromises);
         const maxScore = Math.max(...scores);
-        setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : "0.00");
+
+        if (maxScore > 0) {
+            setGitcoinScore(maxScore.toFixed(2));
+        } else {
+            setGitcoinScore(null); // Null agar muncul tombol "Create"
+        }
     } catch (e) {
+        console.error("Gitcoin fetch error:", e);
         setGitcoinScore(null); 
     }
   };
 
-  // --- LOGIC: TALENT PROTOCOL SCORE (NEW) ---
+  // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) {
         setTalentScore(null); return;
     }
     
-    // Talent API bisa menerima wallet address langsung
-    const targetAddr = addresses[0]; // Cek alamat utama dulu
+    const targetAddr = addresses[0]; // Cek alamat utama
 
     try {
-        const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
+        const response = await fetch(`https://api.talentprotocol.com/api/v2/passports/${targetAddr}`, {
             headers: { "X-API-KEY": TALENT_API_KEY }
         });
+        
+        if (!response.ok) {
+             setTalentScore(null); return;
+        }
+
         const data = await response.json();
-        
-        // Cari "builder_score" dari response
-        const builderScore = data.scores?.find((s: any) => s.slug === "builder_score");
-        
-        if (builderScore) {
-            setTalentScore(builderScore.points.toString());
+        // Talent API V2 mengembalikan object passport dengan field "score"
+        if (data.passport && data.passport.score) {
+            setTalentScore(data.passport.score.toString());
         } else {
-            setTalentScore("0");
+            setTalentScore(null);
         }
     } catch (e) {
         console.error("Talent fetch error:", e);
@@ -176,7 +196,7 @@ export default function Home() {
         if (allAddresses.length > 0) {
             checkCoinbaseVerification(allAddresses);
             fetchGitcoinScore(allAddresses);
-            fetchTalentScore(allAddresses); // Panggil fungsi baru
+            fetchTalentScore(allAddresses);
         }
       }
     } catch (error) { console.error("Load error:", error); }
@@ -304,7 +324,7 @@ export default function Home() {
         {isConnected ? (
           <div className="space-y-6">
             
-            {/* 1. TOMBOL VERIFIKASI */}
+            {/* 1. TOMBOL VERIFIKASI (Base) */}
             <div>
                 {isVerified ? (
                     <a 
@@ -325,6 +345,7 @@ export default function Home() {
                         >
                             <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
                             <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                            
                             <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
                                 <Fingerprint className="w-5 h-5 text-blue-400 group-hover:text-white" />
                                 VERIFY IDENTITY ON BASE
@@ -352,7 +373,7 @@ export default function Home() {
                 <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                 <span className="relative z-20 flex items-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200 transition-colors">
                     <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
-                    {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
+                    {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
                 </span>
                 </button>
 
