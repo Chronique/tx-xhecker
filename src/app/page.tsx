@@ -112,9 +112,10 @@ export default function Home() {
     }
 
     try {
-        // Cek semua alamat secara paralel menggunakan API V2 (passport.xyz)
+        // Cek semua alamat secara paralel menggunakan API V2
         const scorePromises = addresses.map(async (addr) => {
             try {
+                // Endpoint V2 untuk mengambil skor terbaru
                 const response = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, {
                     headers: { 
                         "X-API-Key": GITCOIN_API_KEY,
@@ -163,7 +164,6 @@ export default function Home() {
         }
 
         const data = await response.json();
-        // Talent API V2 mengembalikan object passport dengan field "score"
         if (data.passport && data.passport.score) {
             setTalentScore(data.passport.score.toString());
         } else {
@@ -287,7 +287,6 @@ export default function Home() {
                             <Code2 className="w-3 h-3 text-purple-400" />
                             <p className="text-[10px] text-gray-400 uppercase tracking-widest">Builder Score</p>
                         </div>
-                        {/* Link ke Talent jika belum ada skor */}
                         {!talentScore && (
                             <a href="https://talentprotocol.com/" target="_blank" className="text-[8px] bg-purple-900/50 px-1.5 py-0.5 rounded border border-purple-500/30 text-purple-300">Create</a>
                         )}
@@ -345,7 +344,6 @@ export default function Home() {
                         >
                             <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
                             <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
-                            
                             <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
                                 <Fingerprint className="w-5 h-5 text-blue-400 group-hover:text-white" />
                                 VERIFY IDENTITY ON BASE
