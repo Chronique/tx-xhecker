@@ -50,7 +50,7 @@ export default function Home() {
   // Stats
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
-  const [talentScore, setTalentScore] = useState<string | null>(null);
+  const [talentScore, setTalentScore] = useState<string | null>(null); 
   const [isVerified, setIsVerified] = useState(false);
   
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
@@ -105,43 +105,46 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (API V2) ---
+  // --- LOGIC: GITCOIN SCORE (UPDATED TO V2 API) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
+        console.warn("Gitcoin Config Missing");
         setGitcoinScore(null); return;
     }
-
     try {
-        // Cek semua alamat secara paralel menggunakan API V2
         const scorePromises = addresses.map(async (addr) => {
             try {
-                // Endpoint V2 untuk mengambil skor terbaru
+                // UPDATE: Menggunakan Endpoint V2 (passport.xyz)
                 const response = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, {
                     headers: { 
                         "X-API-Key": GITCOIN_API_KEY,
                         "Content-Type": "application/json"
                     }
                 });
-                if (!response.ok) return 0;
-                const data = await response.json();
                 
-                // Struktur V2: { score: "12.34", ... }
+                if (!response.ok) {
+                    console.log("Gitcoin API Error:", response.status, await response.text());
+                    return 0;
+                }
+
+                const data = await response.json();
+                // Format V2: { score: "12.34", ... }
                 return data.score ? parseFloat(data.score) : 0;
             } catch (e) {
+                console.error("Gitcoin fetch error per address:", e);
                 return 0;
             }
         });
 
         const scores = await Promise.all(scorePromises);
         const maxScore = Math.max(...scores);
+        
+        console.log("Gitcoin Scores Found:", scores); // Debugging
 
-        if (maxScore > 0) {
-            setGitcoinScore(maxScore.toFixed(2));
-        } else {
-            setGitcoinScore(null); // Null agar muncul tombol "Create"
-        }
+        // Jika score 0, kita anggap null agar tombol Create muncul
+        setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
     } catch (e) {
-        console.error("Gitcoin fetch error:", e);
+        console.error("Gitcoin Global Error:", e);
         setGitcoinScore(null); 
     }
   };
@@ -152,22 +155,22 @@ export default function Home() {
         setTalentScore(null); return;
     }
     
-    const targetAddr = addresses[0]; // Cek alamat utama
+    // Talent API bisa menerima wallet address langsung
+    const targetAddr = addresses[0]; // Cek alamat utama dulu
 
     try {
-        const response = await fetch(`https://api.talentprotocol.com/api/v2/passports/${targetAddr}`, {
+        const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
             headers: { "X-API-KEY": TALENT_API_KEY }
         });
-        
-        if (!response.ok) {
-             setTalentScore(null); return;
-        }
-
         const data = await response.json();
-        if (data.passport && data.passport.score) {
-            setTalentScore(data.passport.score.toString());
+        
+        // Cari "builder_score" dari response
+        const builderScore = data.scores?.find((s: any) => s.slug === "builder_score");
+        
+        if (builderScore) {
+            setTalentScore(builderScore.points.toString());
         } else {
-            setTalentScore(null);
+            setTalentScore("0");
         }
     } catch (e) {
         console.error("Talent fetch error:", e);
@@ -196,7 +199,7 @@ export default function Home() {
         if (allAddresses.length > 0) {
             checkCoinbaseVerification(allAddresses);
             fetchGitcoinScore(allAddresses);
-            fetchTalentScore(allAddresses);
+            fetchTalentScore(allAddresses); 
         }
       }
     } catch (error) { console.error("Load error:", error); }
@@ -323,7 +326,7 @@ export default function Home() {
         {isConnected ? (
           <div className="space-y-6">
             
-            {/* 1. TOMBOL VERIFIKASI (Base) */}
+            {/* 1. TOMBOL VERIFIKASI */}
             <div>
                 {isVerified ? (
                     <a 
@@ -371,7 +374,7 @@ export default function Home() {
                 <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                 <span className="relative z-20 flex items-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200 transition-colors">
                     <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
-                    {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
+                    {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
                 </span>
                 </button>
 
