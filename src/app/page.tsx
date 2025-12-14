@@ -6,19 +6,19 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint } from "lucide-react"; 
+import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint, AlertTriangle } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
+// Pastikan variable ini ada di Vercel Environment Variables
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 // --------------------
 
 const BLOCK_EXPLORER_BASE_URL = "https://base.blockscout.com/"; 
 const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF"; 
-// URL Verify Terbaru
 const VERIFY_URL = "https://verify.base.dev/verifications"; 
 
 const BOOST_ABI = [
@@ -105,7 +105,9 @@ export default function Home() {
 
   // --- LOGIC: GITCOIN SCORE ---
   const fetchGitcoinScore = async (addresses: string[]) => {
+    // Jika API Key tidak ada, langsung set null (tampil tombol cek manual)
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
+        console.warn("Gitcoin API Key/Scorer ID missing");
         setGitcoinScore(null); 
         return;
     }
@@ -120,9 +122,11 @@ export default function Home() {
         });
         const data = await response.json();
         
+        // Cek jika ada score
         if (data.score) {
             setGitcoinScore(parseFloat(data.score).toFixed(2));
         } else {
+            // Jika data ada tapi score kosong/belum ada, anggap 0
             setGitcoinScore("0.00");
         }
     } catch (e) {
@@ -159,7 +163,7 @@ export default function Home() {
 
   const handleBoostActivity = () => { 
     if (!address) return;
-    setTxStatusMessage("Processing...");
+    setTxStatusMessage("Checking wallet...");
     try {
         const calldata = encodeFunctionData({ abi: BOOST_ABI, functionName: 'boost' });
         const dataSuffix = Attribution.toDataSuffix({ codes: [MY_BUILDER_CODE] });
@@ -170,10 +174,11 @@ export default function Home() {
           data: finalData, 
         }, {
           onSuccess: (hash) => {
-             setTxStatusMessage("Success! Activity Boosted 🚀");
+             // Pesan sukses dikembalikan seperti semula
+             setTxStatusMessage("Success! Activity score has been boosted. (Tx Confirmed)");
           },
           onError: (err) => {
-             setTxStatusMessage("Failed/Cancelled");
+             setTxStatusMessage("Cancelled or failed.");
           }
         });
     } catch (err: any) { console.error("Error:", err); }
@@ -239,7 +244,8 @@ export default function Home() {
                     <ShieldCheck className="w-3 h-3 text-orange-400" />
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest">Gitcoin Score</p>
                 </div>
-                {gitcoinScore ? (
+                {/* Tampilkan skor langsung jika ada */}
+                {gitcoinScore !== null ? (
                     <p className="text-3xl font-bold text-orange-400">{gitcoinScore}</p>
                 ) : (
                     <a href="https://passport.gitcoin.co/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-orange-400 underline decoration-dotted border border-orange-500/50 px-3 py-1.5 rounded-full hover:bg-orange-500/10 transition">
@@ -252,54 +258,76 @@ export default function Home() {
 
         {/* --- TOMBOL AKSI --- */}
         {isConnected ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
             
-            {/* 1. TOMBOL VERIFIKASI (Base) - ANIMATED JIKA BELUM VERIFIED */}
-            {isVerified ? (
-                // VERIFIED: Static Green
-                <a 
-                    href={VERIFY_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-4 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer transition active:scale-95"
-                >
-                    <ShieldCheck className="w-5 h-5"/> IDENTITY VERIFIED
-                </a>
-            ) : (
-                // UNVERIFIED: Animated Glowing Button
-                <a 
-                    href={VERIFY_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_40px_rgba(59,130,246,0.6)] block text-center"
-                >
-                    {/* Gradient Animation */}
-                    <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
-                    
-                    <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
-                        <Fingerprint className="w-5 h-5 text-blue-400 group-hover:text-white" />
-                        VERIFY IDENTITY ON BASE
+            {/* 1. TOMBOL VERIFIKASI (Base) */}
+            <div>
+                {isVerified ? (
+                    <a 
+                        href={VERIFY_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-4 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer transition active:scale-95"
+                    >
+                        <ShieldCheck className="w-5 h-5"/> IDENTITY VERIFIED
+                    </a>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        <a 
+                            href={VERIFY_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_40px_rgba(59,130,246,0.6)] block text-center"
+                        >
+                            <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                            
+                            <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
+                                <Fingerprint className="w-5 h-5 text-blue-400 group-hover:text-white" />
+                                VERIFY IDENTITY ON BASE
+                            </div>
+                        </a>
+                        {/* Keterangan Warning Smart Wallet */}
+                        <p className="text-[10px] text-red-400 text-center flex items-center justify-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Base App Only (Smart Wallet). Don't use Farcaster wallet.
+                        </p>
                     </div>
-                </a>
-            )}
+                )}
+            </div>
 
-            {/* 2. TOMBOL BOOST (ANIMATED) */}
-            <button
-              onClick={handleBoostActivity}
-              disabled={isTxPending}
-              className={`
-                group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95
-                ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_40px_rgba(168,85,247,0.6)]"}
-              `}
-            >
-              <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
-              <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
-              <span className="relative z-20 flex items-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200 transition-colors">
-                 <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
-                 {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
-              </span>
-            </button>
+            {/* 2. TOMBOL BOOST */}
+            <div>
+                <button
+                onClick={handleBoostActivity}
+                disabled={isTxPending}
+                className={`
+                    group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95
+                    ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_40px_rgba(168,85,247,0.6)]"}
+                `}
+                >
+                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
+                <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                <span className="relative z-20 flex items-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200 transition-colors">
+                    <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
+                    {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
+                </span>
+                </button>
+
+                {/* Notifikasi Status & Note Experimental */}
+                <div className="text-center mt-3 space-y-2">
+                    {txStatusMessage && (
+                        <p className={`text-xs font-bold animate-pulse ${txStatusMessage.includes("Success") ? "text-green-400" : "text-yellow-400"}`}>
+                            {txStatusMessage}
+                        </p>
+                    )}
+                    
+                    <p className="text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                        Note: Boost activity is experimental to increase Neynar score. 
+                        Contract is verified on <a href="https://base.blockscout.com/address/0x285E7E937059f93dAAF6845726e60CD22A865caF?tab=contract" target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300 transition">Blockscout</a>.
+                    </p>
+                </div>
+            </div>
             
             {/* Action Buttons */}
             <div className="flex justify-center pt-2">
@@ -315,13 +343,6 @@ export default function Home() {
                     </button>
                 </div>
             </div>
-
-            {/* Notifikasi Status */}
-            {txStatusMessage && (
-              <p className={`text-xs font-bold animate-pulse text-center ${txStatusMessage.includes("Success") ? "text-green-400" : "text-yellow-400"}`}>
-                {txStatusMessage}
-              </p>
-            )}
 
           </div>
         ) : (
