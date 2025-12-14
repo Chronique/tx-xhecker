@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useConnect, useSendTransaction } from "wagmi"; // Pakai useSendTransaction lagi
-import { createPublicClient, http, encodeFunctionData, concat } from "viem"; // Tambah 'concat'
+import { useAccount, useConnect, useSendTransaction } from "wagmi";
+import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search, Star, Share2 } from "lucide-react"; 
+import { Search, Star, Share2, Zap } from "lucide-react"; // Tambah icon Zap
 import { METADATA } from "~/lib/utils"; 
-import { Attribution } from "ox/erc8021"; // Library untuk generate suffix
+import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI BUILDER CODE ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
@@ -36,23 +36,13 @@ const BOOST_ABI = [
   }
 ] as const;
 
-const publicClient = createPublicClient({
-  chain: base,
-  transport: http(),
-});
-
-const mainnetClient = createPublicClient({
-  chain: mainnet,
-  transport: http(),
-});
-
+const publicClient = createPublicClient({ chain: base, transport: http() });
+const mainnetClient = createPublicClient({ chain: mainnet, transport: http() });
 const COINBASE_VERIFIED_SCHEMA = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
-  
-  // KEMBALI KE useSendTransaction (Lebih Stabil di Farcaster)
   const { sendTransaction, isPending: isTxPending } = useSendTransaction();
 
   // State
@@ -67,7 +57,7 @@ export default function Home() {
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
 
-  // 1. AUTO-DETECT USER 
+  // Auto-detect User
   useEffect(() => {
     const load = async () => {
       sdk.actions.ready(); 
@@ -111,11 +101,7 @@ export default function Home() {
         }),
       });
       const result = await response.json();
-      if (result.data.attestations && result.data.attestations.length > 0) {
-        setIsVerified(true);
-      } else {
-        setIsVerified(false);
-      }
+      setIsVerified(result.data.attestations && result.data.attestations.length > 0);
     } catch (e) {
       console.error("Failed to check Base verification:", e);
       setIsVerified(false);
@@ -133,11 +119,7 @@ export default function Home() {
       const data = await res.json();
       if (data.users && data.users[0]) {
         const user = data.users[0];
-        if (user.score) {
-          setNeynarScore(user.score.toFixed(2));
-        } else {
-          setNeynarScore("N/A"); 
-        }
+        setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         const userAddress = user.verified_addresses.eth_addresses[0] || user.custody_address;
         if (userAddress) {
           updateMyStats(userAddress);
@@ -149,36 +131,21 @@ export default function Home() {
     }
   };
 
-  // --- FUNGSI BOOST DENGAN MANUAL ATTACH BUILDER CODE ---
+  // --- FUNGSI BOOST UTAMA ---
   const handleBoostActivity = () => { 
     if (!address) return;
-    
     setTxStatusMessage("Preparing transaction...");
-    
     try {
-        // 1. Generate data fungsi 'boost()' seperti biasa
-        const calldata = encodeFunctionData({
-            abi: BOOST_ABI,
-            functionName: 'boost'
-        });
-
-        // 2. Generate Suffix dari Builder Code
-        const dataSuffix = Attribution.toDataSuffix({
-            codes: [MY_BUILDER_CODE] 
-        });
-
-        // 3. GABUNGKAN MANUAL: Calldata + Suffix
-        // Ini triknya! Kita tempel sendiri agar tidak bergantung pada kemampuan wallet.
+        const calldata = encodeFunctionData({ abi: BOOST_ABI, functionName: 'boost' });
+        const dataSuffix = Attribution.toDataSuffix({ codes: [MY_BUILDER_CODE] });
         const finalData = concat([calldata, dataSuffix]);
 
-        // 4. Kirim pakai sendTransaction biasa (Pasti support semua wallet)
         sendTransaction({
           to: BOOST_CONTRACT_ADDRESS as `0x${string}`, 
-          data: finalData, // Data yang sudah ditempel suffix
+          data: finalData, 
         }, {
           onSuccess: (hash) => {
             setTxStatusMessage("Transaction submitted! Waiting confirmation...");
-            
             const checkReceipt = async () => {
                 try {
                     const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -224,13 +191,7 @@ export default function Home() {
   };
   
   const handleAddMiniApp = async () => {
-      try {
-          await sdk.actions.addMiniApp(); 
-          setIsAdded(true); 
-          alert(`App ${METADATA.name} successfully added! 🎉`);
-      } catch (e) {
-          alert("Failed to add Mini App.");
-      }
+      try { await sdk.actions.addMiniApp(); setIsAdded(true); alert(`App ${METADATA.name} successfully added! 🎉`); } catch (e) { alert("Failed to add Mini App."); }
   };
 
   const handleShareCast = () => {
@@ -243,7 +204,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono overflow-x-hidden">
       
-      {/* HEADER WITH COLOR-CHANGING MARQUEE ANIMATION */}
+      {/* HEADER MARQUEE */}
       <div className="mb-6 overflow-hidden w-full relative py-2">
         <h1 className="text-3xl font-black whitespace-nowrap animate-marquee">
           BASE STATS CHECKER • CHECK YOUR SCORE & BOOST ACTIVITY
@@ -261,15 +222,11 @@ export default function Home() {
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
                 {isVerified ? (
                   <span className="flex items-center gap-1 bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400 shadow-glow">
-                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-[10px] font-bold text-white">VERIFIED</span>
+                    <span className="text-[10px] font-bold text-white px-1">VERIFIED</span>
                   </span>
                 ) : (
                   <a href="https://verify.base.dev/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded border border-gray-600 hover:text-white hover:border-gray-400 transition">
                     <span>Unverified</span>
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                   </a>
                 )}
               </div>
@@ -291,23 +248,32 @@ export default function Home() {
         </div>
 
         {isConnected ? (
-          <div className="text-center">
+          <div className="text-center flex flex-col items-center">
+            
+            {/* --- TOMBOL ANIMASI ALA VIDEO --- */}
             <button
               onClick={handleBoostActivity}
               disabled={isTxPending}
-              className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95 ${
-                isTxPending 
-                  ? "bg-gray-700 text-gray-400 cursor-not-allowed" 
-                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border border-blue-400/30"
-              }`}
+              className={`
+                group relative px-8 py-4 bg-black rounded-full overflow-hidden transition-all duration-300 active:scale-95
+                ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_40px_rgba(0,82,255,0.6)]"}
+              `}
             >
-              {isTxPending 
-                ? "Processing..." 
-                : "🔥 BOOST ACTIVITY (Smart Contract)"
-              }
+              {/* Gradient Border Animation */}
+              <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0052ff_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
+              
+              {/* Inner Black Background */}
+              <div className="absolute inset-[2px] bg-gray-900 rounded-full z-10 flex items-center justify-center"></div>
+
+              {/* Text & Content */}
+              <span className="relative z-20 flex items-center gap-2 text-white font-bold text-lg tracking-wider group-hover:text-blue-200 transition-colors">
+                 <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
+                 {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY"}
+              </span>
             </button>
+            {/* -------------------------------- */}
             
-            <p className="text-[10px] text-gray-500 mt-3 text-center max-w-sm mx-auto leading-relaxed">
+            <p className="text-[10px] text-gray-500 mt-4 text-center max-w-sm mx-auto leading-relaxed">
               Note: Boost activity is experimental to increase Neynar score. 
               Contract is verified on <a href="https://base.blockscout.com/address/0x285E7E937059f93dAAF6845726e60CD22A865caF?tab=contract" target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300 transition">Blockscout</a>.
             </p>
@@ -318,6 +284,7 @@ export default function Home() {
               </p>
             )}
             
+            {/* BUTTON GROUP ADD & SHARE */}
             <div className="flex justify-center mt-6">
                 <div className="inline-flex rounded-full shadow-lg bg-purple-600 overflow-hidden border border-purple-500/50" role="group">
                     <button onClick={handleAddMiniApp} disabled={isAdded} className={`flex items-center gap-2 px-6 py-3 font-bold text-white transition active:bg-purple-800 hover:bg-purple-700 text-sm ${isAdded ? 'opacity-70 cursor-not-allowed bg-purple-800' : ''}`}>
@@ -344,6 +311,7 @@ export default function Home() {
         )}
       </div>
 
+      {/* SEARCH SECTION */}
       <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-800">
         <h2 className="text-sm font-bold mb-3 text-gray-400 uppercase">Search Wallet or ENS</h2>
         <div className="flex gap-2">
