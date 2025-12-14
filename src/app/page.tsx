@@ -6,7 +6,7 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search, Star, Share2, Zap, CheckCircle2, XCircle } from "lucide-react"; 
+import { Search, Star, Share2, Zap, CheckCircle2, XCircle, Clock, Users, UserPlus, Wallet } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
@@ -48,9 +48,15 @@ export default function Home() {
   // State
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
+  
+  // Stats
   const [myTxCount, setMyTxCount] = useState<number | null>(null);
   const [neynarScore, setNeynarScore] = useState<string>("Loading...");
   const [isVerified, setIsVerified] = useState(false);
+  const [followerCount, setFollowerCount] = useState<number | null>(null);
+  const [followingCount, setFollowingCount] = useState<number | null>(null);
+
+  // Search & Status
   const [targetAddress, setTargetAddress] = useState("");
   const [otherTxCount, setOtherTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,17 +77,29 @@ export default function Home() {
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
 
-  const updateMyStats = async (addr: string) => {
-    const count = await publicClient.getTransactionCount({ address: addr as `0x${string}` });
-    setMyTxCount(count);
+  // --- LOGIC: 24h TRANSAKSI ---
+  const fetch24hTxCount = async (addr: string) => {
+    try {
+        const response = await fetch(`https://base.blockscout.com/api?module=account&action=txlist&address=${addr}&startblock=0&endblock=99999999&page=1&offset=1000&sort=desc`);
+        const data = await response.json();
+
+        if (data.status === "1" && Array.isArray(data.result)) {
+            const oneDayAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
+            const recentTxs = data.result.filter((tx: any) => parseInt(tx.timeStamp) > oneDayAgo);
+            setMyTxCount(recentTxs.length);
+        } else {
+            setMyTxCount(0);
+        }
+    } catch (error) {
+        console.error("Failed to fetch 24h txs:", error);
+        setMyTxCount(null);
+    }
   };
 
-  // --- FUNGSI CEK VERIFIKASI (FIXED: Cek Banyak Alamat) ---
+  // --- LOGIC: VERIFIKASI (EAS) ---
   const checkCoinbaseVerification = async (addresses: string[]) => {
     try {
-      // Ubah semua alamat ke lowercase untuk pencocokan EAS
       const formattedAddresses = addresses.map(a => a.toLowerCase());
-
       const response = await fetch("https://base.easscan.org/graphql", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,18 +117,15 @@ export default function Home() {
           variables: {
             where: {
               schemaId: { equals: COINBASE_VERIFIED_SCHEMA },
-              recipient: { in: formattedAddresses }, // Cek apakah SALAH SATU alamat punya verifikasi
+              recipient: { in: formattedAddresses }, 
               revoked: { equals: false },
             },
           },
         }),
       });
       const result = await response.json();
-      
-      // Jika ada setidaknya 1 hasil, berarti user VERIFIED
       if (result.data?.attestations?.length > 0) {
         setIsVerified(true);
-        console.log("Verified Address Found:", result.data.attestations[0].recipient);
       } else {
         setIsVerified(false);
       }
@@ -120,6 +135,7 @@ export default function Home() {
     }
   };
 
+  // --- FETCH DATA UTAMA ---
   const fetchAddressAndStats = async (fid: number) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
@@ -132,27 +148,25 @@ export default function Home() {
       
       if (data.users && data.users[0]) {
         const user = data.users[0];
+        
+        // 1. Ambil Data Farcaster
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
+        setFollowerCount(user.follower_count || 0);
+        setFollowingCount(user.following_count || 0);
         
-        // --- LOGIKA BARU: KUMPULKAN SEMUA ALAMAT ---
+        // 2. Ambil Data Wallet
         const allAddresses: string[] = [];
-        
-        // 1. Ambil Custody Address (Wajib ada)
         if (user.custody_address) allAddresses.push(user.custody_address);
-        
-        // 2. Ambil Semua Verified Addresses (Wallet Connect, dll)
         if (user.verified_addresses?.eth_addresses) {
             allAddresses.push(...user.verified_addresses.eth_addresses);
         }
 
-        // Ambil alamat utama untuk display stats (biasanya yg pertama verified, atau custody)
         const primaryAddress = user.verified_addresses.eth_addresses[0] || user.custody_address;
         
         if (primaryAddress) {
-          updateMyStats(primaryAddress);
+          fetch24hTxCount(primaryAddress);
         }
 
-        // Cek Verifikasi ke SEMUA alamat yang ditemukan
         if (allAddresses.length > 0) {
             checkCoinbaseVerification(allAddresses);
         }
@@ -181,7 +195,7 @@ export default function Home() {
                     const receipt = await publicClient.waitForTransactionReceipt({ hash });
                     if (receipt.status === 'success') {
                         setTxStatusMessage("Success! Activity Boosted & Attributed 🚀");
-                        updateMyStats(address);
+                        fetch24hTxCount(address);
                     }
                 } catch (e) {
                     setTxStatusMessage("Tx Sent, please check Explorer.");
@@ -214,10 +228,23 @@ export default function Home() {
       if (!finalAddress.startsWith("0x") || finalAddress.length !== 42) {
         alert("Invalid address!"); setLoading(false); return;
       }
-      const count = await publicClient.getTransactionCount({ address: finalAddress as `0x${string}` });
-      setOtherTxCount(count);
+      fetch24hTxCountForSearch(finalAddress);
     } catch (err) { console.error(err); alert("Error fetching data."); }
     setLoading(false);
+  };
+
+  const fetch24hTxCountForSearch = async (addr: string) => {
+      try {
+        const response = await fetch(`https://base.blockscout.com/api?module=account&action=txlist&address=${addr}&startblock=0&endblock=99999999&page=1&offset=1000&sort=desc`);
+        const data = await response.json();
+        if (data.status === "1" && Array.isArray(data.result)) {
+            const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+            const recentTxs = data.result.filter((tx: any) => parseInt(tx.timeStamp) > oneDayAgo);
+            setOtherTxCount(recentTxs.length);
+        } else {
+            setOtherTxCount(0);
+        }
+      } catch (e) { setOtherTxCount(0); }
   };
   
   const handleAddMiniApp = async () => {
@@ -268,16 +295,76 @@ export default function Home() {
           </div>
         </div>
 
+        {/* --- GRID UTAMA YANG DIBALIK --- */}
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-widest">Total TXs</p>
-            <p className="text-3xl font-bold text-green-400 mt-1">{myTxCount !== null ? myTxCount : "..."}</p>
+          
+          {/* KOLOM KIRI: FARCASTER (Social + Wallet) */}
+          <div className="space-y-4">
+             {/* Farcaster Header */}
+             <div className="flex items-center gap-2 mb-[-8px] px-1">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <p className="text-[10px] text-purple-300 uppercase tracking-widest">Farcaster</p>
+             </div>
+
+             {/* Followers & Following */}
+             <div className="grid grid-cols-2 gap-2">
+                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
+                    <Users className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                    <p className="text-[9px] text-gray-500 uppercase">Followers</p>
+                    <p className="text-sm font-bold text-white">{followerCount !== null ? followerCount : "-"}</p>
+                </div>
+                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
+                    <UserPlus className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                    <p className="text-[9px] text-gray-500 uppercase">Following</p>
+                    <p className="text-sm font-bold text-white">{followingCount !== null ? followingCount : "-"}</p>
+                </div>
+             </div>
+
+             {/* 24h Transactions (Wallet Activity) */}
+             <div className="p-3 bg-gray-800/80 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between mb-1">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-widest">24h Wallet TXs</p>
+                    <Wallet className="w-3 h-3 text-gray-400" />
+                </div>
+                <p className="text-2xl font-bold text-white">
+                    {myTxCount !== null ? myTxCount : <span className="animate-pulse text-gray-600">...</span>}
+                </p>
+                <p className="text-[9px] text-gray-500 text-right mt-[-4px]">Onchain Activity</p>
+             </div>
           </div>
-          <div className="p-4 bg-gray-800 rounded-lg text-center border border-gray-700 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8"></div>
-            <p className="text-xs text-gray-400 uppercase tracking-widest">Neynar Score</p>
-            <p className="text-3xl font-bold text-purple-400 mt-1">{neynarScore}</p>
+
+          {/* KOLOM KANAN: BASE (Identity/Score) */}
+          <div className="space-y-4">
+             {/* Base Header */}
+             <div className="flex items-center gap-2 mb-[-8px] px-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <p className="text-[10px] text-blue-300 uppercase tracking-widest">Base Identity</p>
+             </div>
+
+             {/* Neynar Score */}
+             <div className="p-4 bg-gray-800 rounded-lg text-center border border-blue-500/30 relative overflow-hidden flex flex-col items-center justify-center min-h-[90px]">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8"></div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Neynar Score</p>
+                <p className="text-3xl font-bold text-blue-400 mt-1">{neynarScore}</p>
+             </div>
+
+             {/* Boost Status */}
+             <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700 flex flex-col justify-center h-[54px]">
+                <div className="flex justify-between items-center">
+                    <p className="text-[10px] text-gray-400">Boost Status</p>
+                    {txStatusMessage.includes("Success") ? (
+                        <span className="text-xs font-bold text-green-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3"/> Active
+                        </span>
+                    ) : (
+                        <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3"/> Ready
+                        </span>
+                    )}
+                </div>
+             </div>
           </div>
+
         </div>
 
         {isConnected ? (
@@ -288,7 +375,7 @@ export default function Home() {
               onClick={handleBoostActivity}
               disabled={isTxPending}
               className={`
-                group relative px-8 py-4 bg-black rounded-full overflow-hidden transition-all duration-300 active:scale-95
+                group relative px-8 py-4 bg-black rounded-full overflow-hidden transition-all duration-300 active:scale-95 w-full
                 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_40px_rgba(0,82,255,0.6)]"}
               `}
             >
@@ -296,7 +383,7 @@ export default function Home() {
               <div className="absolute inset-[2px] bg-gray-900 rounded-full z-10 flex items-center justify-center"></div>
               <span className="relative z-20 flex items-center gap-2 text-white font-bold text-lg tracking-wider group-hover:text-blue-200 transition-colors">
                  <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
-                 {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY"}
+                 {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
               </span>
             </button>
             {/* ---------------------- */}
@@ -350,6 +437,7 @@ export default function Home() {
           <div className="mt-3 text-center bg-green-900/20 p-2 rounded border border-green-500/30">
              <p className="text-gray-400 text-xs mb-1">Result for wallet:</p>
              <p className="text-green-400 font-bold text-lg">{otherTxCount} Transactions</p>
+             <p className="text-[10px] text-gray-500">(Last 24h)</p>
           </div>
         )}
       </div>
