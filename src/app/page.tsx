@@ -6,7 +6,7 @@ import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base, mainnet } from "viem/chains"; 
 import { normalize } from 'viem/ens'; 
 import sdk from "@farcaster/frame-sdk";
-import { Search, Star, Share2, Zap } from "lucide-react"; 
+import { Search, Star, Share2, Zap, CheckCircle2, XCircle } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
@@ -76,10 +76,11 @@ export default function Home() {
     setMyTxCount(count);
   };
 
-  const checkCoinbaseVerification = async (addr: string) => {
+  // --- FUNGSI CEK VERIFIKASI (FIXED: Cek Banyak Alamat) ---
+  const checkCoinbaseVerification = async (addresses: string[]) => {
     try {
-      // FIX: Gunakan .toLowerCase() agar sesuai dengan format di database EAS
-      const formattedAddr = addr.toLowerCase();
+      // Ubah semua alamat ke lowercase untuk pencocokan EAS
+      const formattedAddresses = addresses.map(a => a.toLowerCase());
 
       const response = await fetch("https://base.easscan.org/graphql", {
         method: "POST",
@@ -90,6 +91,7 @@ export default function Home() {
               attestations(where: $where) {
                 id
                 attester
+                recipient
                 revoked
               }
             }
@@ -97,7 +99,7 @@ export default function Home() {
           variables: {
             where: {
               schemaId: { equals: COINBASE_VERIFIED_SCHEMA },
-              recipient: { equals: formattedAddr }, // Pastikan lowercase
+              recipient: { in: formattedAddresses }, // Cek apakah SALAH SATU alamat punya verifikasi
               revoked: { equals: false },
             },
           },
@@ -105,13 +107,11 @@ export default function Home() {
       });
       const result = await response.json();
       
+      // Jika ada setidaknya 1 hasil, berarti user VERIFIED
       if (result.data?.attestations?.length > 0) {
         setIsVerified(true);
+        console.log("Verified Address Found:", result.data.attestations[0].recipient);
       } else {
-        // Coba cek sekali lagi tanpa lowercase (just in case)
-        if (formattedAddr !== addr) {
-            // Optional: double check logic kalau mau sangat teliti, tapi biasanya lowercase cukup
-        }
         setIsVerified(false);
       }
     } catch (e) {
@@ -129,16 +129,32 @@ export default function Home() {
         { headers: { accept: "application/json", api_key: apiKey } }
       );
       const data = await res.json();
+      
       if (data.users && data.users[0]) {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
-        // Prioritaskan verified addresses, fallback ke custody address
-        const userAddress = user.verified_addresses.eth_addresses[0] || user.custody_address;
+        // --- LOGIKA BARU: KUMPULKAN SEMUA ALAMAT ---
+        const allAddresses: string[] = [];
         
-        if (userAddress) {
-          updateMyStats(userAddress);
-          checkCoinbaseVerification(userAddress);
+        // 1. Ambil Custody Address (Wajib ada)
+        if (user.custody_address) allAddresses.push(user.custody_address);
+        
+        // 2. Ambil Semua Verified Addresses (Wallet Connect, dll)
+        if (user.verified_addresses?.eth_addresses) {
+            allAddresses.push(...user.verified_addresses.eth_addresses);
+        }
+
+        // Ambil alamat utama untuk display stats (biasanya yg pertama verified, atau custody)
+        const primaryAddress = user.verified_addresses.eth_addresses[0] || user.custody_address;
+        
+        if (primaryAddress) {
+          updateMyStats(primaryAddress);
+        }
+
+        // Cek Verifikasi ke SEMUA alamat yang ditemukan
+        if (allAddresses.length > 0) {
+            checkCoinbaseVerification(allAddresses);
         }
       }
     } catch (error) {
@@ -146,7 +162,6 @@ export default function Home() {
     }
   };
 
-  // --- FUNGSI BOOST UTAMA ---
   const handleBoostActivity = () => { 
     if (!address) return;
     setTxStatusMessage("Preparing transaction...");
@@ -235,13 +250,16 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
+                {/* STATUS VERIFIKASI */}
                 {isVerified ? (
-                  <span className="flex items-center gap-1 bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400 shadow-glow">
-                    <span className="text-[10px] font-bold text-white px-1">VERIFIED</span>
+                  <span className="flex items-center gap-1 bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]">
+                    <CheckCircle2 className="w-3 h-3 text-green-400" />
+                    <span className="text-[10px] font-bold text-green-400 px-1">VERIFIED</span>
                   </span>
                 ) : (
-                  <a href="https://verify.base.dev/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded border border-gray-600 hover:text-white hover:border-gray-400 transition">
-                    <span>Unverified</span>
+                  <a href="https://verify.base.dev/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/50 hover:bg-red-500/20 transition group">
+                    <XCircle className="w-3 h-3 text-red-400" />
+                    <span className="text-[10px] text-red-400 px-1 group-hover:text-red-300">Unverified</span>
                   </a>
                 )}
               </div>
@@ -265,7 +283,7 @@ export default function Home() {
         {isConnected ? (
           <div className="text-center flex flex-col items-center">
             
-            {/* --- TOMBOL ANIMASI ALA VIDEO --- */}
+            {/* --- TOMBOL ANIMASI --- */}
             <button
               onClick={handleBoostActivity}
               disabled={isTxPending}
@@ -274,19 +292,14 @@ export default function Home() {
                 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_40px_rgba(0,82,255,0.6)]"}
               `}
             >
-              {/* Gradient Border Animation */}
               <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0052ff_50%,#000000_100%)] opacity-100 group-hover:opacity-100 transition-opacity"></div>
-              
-              {/* Inner Black Background */}
               <div className="absolute inset-[2px] bg-gray-900 rounded-full z-10 flex items-center justify-center"></div>
-
-              {/* Text & Content */}
               <span className="relative z-20 flex items-center gap-2 text-white font-bold text-lg tracking-wider group-hover:text-blue-200 transition-colors">
                  <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
                  {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY"}
               </span>
             </button>
-            {/* -------------------------------- */}
+            {/* ---------------------- */}
             
             <p className="text-[10px] text-gray-500 mt-4 text-center max-w-sm mx-auto leading-relaxed">
               Note: Boost activity is experimental to increase Neynar score. 
@@ -299,7 +312,6 @@ export default function Home() {
               </p>
             )}
             
-            {/* BUTTON GROUP ADD & SHARE */}
             <div className="flex justify-center mt-6">
                 <div className="inline-flex rounded-full shadow-lg bg-purple-600 overflow-hidden border border-purple-500/50" role="group">
                     <button onClick={handleAddMiniApp} disabled={isAdded} className={`flex items-center gap-2 px-6 py-3 font-bold text-white transition active:bg-purple-800 hover:bg-purple-700 text-sm ${isAdded ? 'opacity-70 cursor-not-allowed bg-purple-800' : ''}`}>
@@ -326,7 +338,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* SEARCH SECTION */}
       <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-800">
         <h2 className="text-sm font-bold mb-3 text-gray-400 uppercase">Search Wallet or ENS</h2>
         <div className="flex gap-2">
