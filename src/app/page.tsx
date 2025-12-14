@@ -12,7 +12,6 @@ import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
-// Pastikan variable ini ada di Vercel Environment Variables
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 // --------------------
@@ -103,30 +102,31 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE ---
+  // --- LOGIC: GITCOIN SCORE (MULTIPLE WALLETS) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
-    // Jika API Key tidak ada, langsung set null (tampil tombol cek manual)
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
-        console.warn("Gitcoin API Key/Scorer ID missing");
         setGitcoinScore(null); 
         return;
     }
 
-    const targetAddr = addresses[0]; 
-    
     try {
-        const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${targetAddr}`, {
-            headers: {
-                "X-API-Key": GITCOIN_API_KEY
-            }
+        // Cek semua alamat secara paralel
+        const scorePromises = addresses.map(async (addr) => {
+            const response = await fetch(`https://api.scorer.gitcoin.co/registry/score/${GITCOIN_SCORER_ID}/${addr}`, {
+                headers: { "X-API-Key": GITCOIN_API_KEY }
+            });
+            const data = await response.json();
+            return data.score ? parseFloat(data.score) : 0;
         });
-        const data = await response.json();
+
+        const scores = await Promise.all(scorePromises);
         
-        // Cek jika ada score
-        if (data.score) {
-            setGitcoinScore(parseFloat(data.score).toFixed(2));
+        // Ambil skor tertinggi dari semua wallet yang terhubung
+        const maxScore = Math.max(...scores);
+
+        if (maxScore > 0) {
+            setGitcoinScore(maxScore.toFixed(2));
         } else {
-            // Jika data ada tapi score kosong/belum ada, anggap 0
             setGitcoinScore("0.00");
         }
     } catch (e) {
@@ -174,7 +174,6 @@ export default function Home() {
           data: finalData, 
         }, {
           onSuccess: (hash) => {
-             // Pesan sukses dikembalikan seperti semula
              setTxStatusMessage("Success! Activity score has been boosted. (Tx Confirmed)");
           },
           onError: (err) => {
@@ -244,7 +243,6 @@ export default function Home() {
                     <ShieldCheck className="w-3 h-3 text-orange-400" />
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest">Gitcoin Score</p>
                 </div>
-                {/* Tampilkan skor langsung jika ada */}
                 {gitcoinScore !== null ? (
                     <p className="text-3xl font-bold text-orange-400">{gitcoinScore}</p>
                 ) : (
@@ -287,7 +285,6 @@ export default function Home() {
                                 VERIFY IDENTITY ON BASE
                             </div>
                         </a>
-                        {/* Keterangan Warning Smart Wallet */}
                         <p className="text-[10px] text-red-400 text-center flex items-center justify-center gap-1">
                             <AlertTriangle className="w-3 h-3" />
                             Base App Only (Smart Wallet). Don't use Farcaster wallet.
@@ -310,11 +307,10 @@ export default function Home() {
                 <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                 <span className="relative z-20 flex items-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200 transition-colors">
                     <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
-                    {isTxPending ? "PROCESSING..." : "BOOST BASE ACTIVITY"}
+                    {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
                 </span>
                 </button>
 
-                {/* Notifikasi Status & Note Experimental */}
                 <div className="text-center mt-3 space-y-2">
                     {txStatusMessage && (
                         <p className={`text-xs font-bold animate-pulse ${txStatusMessage.includes("Success") ? "text-green-400" : "text-yellow-400"}`}>
@@ -329,7 +325,6 @@ export default function Home() {
                 </div>
             </div>
             
-            {/* Action Buttons */}
             <div className="flex justify-center pt-2">
                 <div className="inline-flex rounded-full shadow-lg bg-purple-600 overflow-hidden border border-purple-500/50" role="group">
                     <button onClick={handleAddMiniApp} disabled={isAdded} className={`flex items-center gap-2 px-6 py-2 font-bold text-white transition hover:bg-purple-700 text-xs ${isAdded ? 'opacity-50' : ''}`}>
