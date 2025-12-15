@@ -3,16 +3,14 @@
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
-import { base, mainnet } from "viem/chains"; 
-import { normalize } from 'viem/ens'; 
+import { base } from "viem/chains"; 
 import sdk from "@farcaster/frame-sdk";
-import { Star, Share2, Zap, CheckCircle2, ShieldCheck, ExternalLink, Fingerprint, AlertTriangle, Code2, Twitter } from "lucide-react"; 
+import { Star, Share2, Zap, CheckCircle2, ShieldCheck, AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
-// Pastikan variabel ini ada di .env.local dan Environment Variables Vercel
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
@@ -36,8 +34,6 @@ const BOOST_ABI = [
   },
   { "inputs": [], "name": "boost", "outputs": [], "stateMutability": "nonpayable", "type": "function" }
 ] as const;
-
-const publicClient = createPublicClient({ chain: base, transport: http() });
 
 // --- SCHEMAS (EAS BASE) ---
 const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
@@ -63,6 +59,9 @@ export default function Home() {
   
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
+  
+  // Loading State untuk Submit Passport
+  const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
 
   // Auto-detect User
   useEffect(() => {
@@ -118,7 +117,7 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (LOGIKA SNIPPET TERBARU) ---
+  // --- LOGIC: GITCOIN SCORE FETCH ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
         console.warn("Gitcoin Env Vars missing");
@@ -128,7 +127,6 @@ export default function Home() {
     try {
         const scorePromises = addresses.map(async (addr) => {
             try {
-                // Fetch tanpa Content-Type header sesuai permintaan snippet Anda
                 const scoreResponse = await fetch(
                   `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
                   {
@@ -136,36 +134,24 @@ export default function Home() {
                   }
                 );
                 
-                if (!scoreResponse.ok) {
-                    // DEBUG: Lihat ini di Console Browser jika skor masih 0 atau error
-                    console.log(`Gitcoin Error for ${addr}:`, scoreResponse.status, await scoreResponse.text());
-                    return 0;
-                }
+                if (!scoreResponse.ok) return 0;
 
                 const scoreData = await scoreResponse.json();
-                
-                // DEBUG: Lihat data asli dari Gitcoin
-                console.log(`Gitcoin RAW Data for ${addr}:`, scoreData);
-
-                // Parsing persis seperti snippet Anda
                 return scoreData && scoreData.score ? parseFloat(scoreData.score) : 0;
             } catch (e) { 
-                console.error("Gitcoin fetch loop error:", e);
                 return 0; 
             }
         });
 
         const scores = await Promise.all(scorePromises);
-        
-        // Ambil skor tertinggi dari semua wallet
         const maxScore = Math.max(...scores);
 
-        console.log("FINAL Gitcoin Scores Found:", scores); 
+        console.log("Gitcoin Scores:", scores); 
 
         if (maxScore > 0) {
             setGitcoinScore(maxScore.toFixed(2));
         } else {
-            setGitcoinScore(null); // Null agar tombol "Create" muncul jika 0
+            setGitcoinScore(null); 
         }
     } catch (e) {
         console.error("Gitcoin Global Error:", e);
@@ -173,28 +159,81 @@ export default function Home() {
     }
   };
 
+  // --- LOGIC: SUBMIT PASSPORT (SOLUSI API V2) ---
+  const submitPassport = async () => {
+    // Pastikan user terkoneksi dan env var ada
+    if (!address) {
+        alert("Please connect your wallet first.");
+        return;
+    }
+    if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
+        alert("Gitcoin configuration missing.");
+        return;
+    }
+    
+    setIsSubmittingPassport(true);
+    setTxStatusMessage("Submitting Passport..."); 
+
+    try {
+      // 1. Submit Stamp ke Scorer ID Anda
+      const response = await fetch(
+        `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/submit`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": GITCOIN_API_KEY,
+          },
+          body: JSON.stringify({
+            address: address, 
+            scorer_id: GITCOIN_SCORER_ID
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Submit Failed:", errText);
+        setTxStatusMessage("Submit failed. Try again.");
+        setIsSubmittingPassport(false);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("Submit Success:", data);
+      
+      setTxStatusMessage("Passport submitted! Refreshing score...");
+      
+      // 2. Fetch ulang skor setelah jeda singkat
+      setTimeout(() => {
+        fetchGitcoinScore([address]);
+        setTxStatusMessage("Score updated.");
+        setIsSubmittingPassport(false);
+      }, 2000);
+
+    } catch (e) {
+      console.error("Submit error:", e);
+      setTxStatusMessage("Error submitting passport.");
+      setIsSubmittingPassport(false);
+    }
+  };
+
   // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) { setTalentScore(null); return; }
-    
-    // Gunakan alamat utama (biasanya user pakai main wallet untuk Talent)
     const targetAddr = addresses[0]; 
-
     try {
         const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
             headers: { "X-API-KEY": TALENT_API_KEY }
         });
         const data = await response.json();
-        
         const builderScore = data.scores?.find((s: any) => s.slug === "builder_score");
-        
         if (builderScore) {
             setTalentScore(builderScore.points.toString());
         } else {
             setTalentScore("0");
         }
     } catch (e) {
-        console.error("Talent fetch error:", e);
         setTalentScore(null);
     }
   };
@@ -211,7 +250,6 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
-        // Kumpulkan semua alamat wallet user
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
@@ -260,7 +298,6 @@ export default function Home() {
       sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodedText}&embeds[]=${encodedEmbed}`);
   };
 
-  // --- BADGE LOGIC ---
   const isFullyVerified = isIdentityVerified && isSocialVerified;
   const isPartiallyVerified = isIdentityVerified || isSocialVerified;
 
@@ -283,16 +320,12 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
-                
-                {/* --- DINAMIS BADGE (COLORS SWAPPED) --- */}
                 {isFullyVerified ? (
-                  // FULLY VERIFIED -> BLUE (Efek Glowing)
                   <span className="bg-blue-500/20 px-3 py-1 rounded-full border border-blue-500 flex items-center gap-1 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse">
                     <CheckCircle2 className="w-3 h-3 text-blue-400" />
                     <span className="text-[10px] font-bold text-blue-400 tracking-wider">FULLY VERIFIED</span>
                   </span>
                 ) : isPartiallyVerified ? (
-                  // PARTIAL VERIFIED -> GREEN
                   <span className="bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-green-400" />
                     <span className="text-[10px] font-bold text-green-400">VERIFIED</span>
@@ -303,8 +336,6 @@ export default function Home() {
                     <span className="text-[10px] font-bold text-red-400">UNVERIFIED</span>
                   </span>
                 )}
-                {/* ------------------- */}
-
               </div>
               <p className="text-xs text-gray-400">FID: {farcasterUser?.fid || "..."}</p>
             </div>
@@ -344,21 +375,48 @@ export default function Home() {
                     )}
                 </div>
 
-                {/* Gitcoin */}
+                {/* Gitcoin Card */}
                 <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-orange-500/30 flex flex-col justify-center relative overflow-hidden">
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-orange-400" />
                             <p className="text-[10px] text-gray-400 uppercase tracking-widest">Gitcoin Score</p>
                         </div>
-                        {!gitcoinScore && (
-                            <a href="https://passport.gitcoin.co/" target="_blank" className="text-[8px] bg-orange-900/50 px-1.5 py-0.5 rounded border border-orange-500/30 text-orange-300">Create</a>
-                        )}
+                        {/* Link Manage Passport */}
+                        <a href="https://passport.gitcoin.co/" target="_blank" className="text-[8px] bg-orange-900/50 px-1.5 py-0.5 rounded border border-orange-500/30 text-orange-300">
+                          Manage
+                        </a>
                     </div>
-                    {gitcoinScore ? (
-                        <p className="text-2xl font-bold text-orange-400">{gitcoinScore}</p>
+
+                    {/* Tampilkan Skor atau Tombol Refresh/Calculate */}
+                    {gitcoinScore && parseFloat(gitcoinScore) > 0 ? (
+                        <div className="flex items-center justify-between">
+                           <p className="text-2xl font-bold text-orange-400">{gitcoinScore}</p>
+                           <button 
+                             onClick={submitPassport} 
+                             disabled={isSubmittingPassport}
+                             className="text-gray-500 hover:text-white transition-colors"
+                             title="Refresh Score"
+                           >
+                             <RefreshCcw className={`w-3 h-3 ${isSubmittingPassport ? 'animate-spin' : ''}`} />
+                           </button>
+                        </div>
                     ) : (
-                        <p className="text-lg font-bold text-gray-600">0.00</p>
+                        <div className="flex flex-col gap-1">
+                           <p className="text-lg font-bold text-gray-600">0.00</p>
+                           {/* TOMBOL PENTING: User harus klik ini jika skor 0 */}
+                           <button 
+                             onClick={submitPassport} 
+                             disabled={isSubmittingPassport}
+                             className={`text-[9px] w-full py-1 rounded font-bold transition-all border border-orange-500/50 ${
+                               isSubmittingPassport 
+                               ? 'bg-orange-900/50 text-gray-400 cursor-wait' 
+                               : 'bg-orange-600 hover:bg-orange-500 text-white hover:shadow-[0_0_10px_rgba(249,115,22,0.4)]'
+                             }`}
+                           >
+                             {isSubmittingPassport ? "Calculating..." : "Tap to Calculate"}
+                           </button>
+                        </div>
                     )}
                 </div>
 
@@ -369,7 +427,7 @@ export default function Home() {
         {isConnected ? (
           <div className="space-y-4">
             
-            {/* 1. VERIFY SOCIAL (Base Verify) - LIQUID EFFECT */}
+            {/* 1. VERIFY SOCIAL (Base Verify) */}
             <div>
                 {isSocialVerified ? (
                     <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-blue-900/20 text-blue-400 border border-blue-500/50 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-default">
@@ -377,7 +435,6 @@ export default function Home() {
                     </a>
                 ) : (
                     <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(14,165,233,0.6)] block text-center border border-sky-900">
-                        {/* Efek Liquid / Blob (Cyan/Sky) */}
                         <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                         <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                         <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-sky-200 transition-colors">
@@ -388,7 +445,7 @@ export default function Home() {
                 )}
             </div>
 
-            {/* 2. VERIFY IDENTITY (EAS / KYC) - LIQUID EFFECT */}
+            {/* 2. VERIFY IDENTITY (EAS / KYC) */}
             <div>
                 {isIdentityVerified ? (
                     <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-default">
@@ -397,7 +454,6 @@ export default function Home() {
                 ) : (
                     <div className="flex flex-col gap-1">
                         <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] block text-center border border-blue-900">
-                            {/* Efek Liquid / Blob (Blue) */}
                             <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                             <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                             <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
@@ -413,10 +469,9 @@ export default function Home() {
                 )}
             </div>
 
-            {/* 3. TOMBOL BOOST - LIQUID EFFECT */}
+            {/* 3. TOMBOL BOOST */}
             <div>
                 <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
-                    {/* Efek Liquid / Blob (Purple) */}
                     <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                     <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                     <span className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200">
@@ -427,13 +482,13 @@ export default function Home() {
 
                 <div className="text-center mt-3 space-y-2">
                     {txStatusMessage && (
-                        <p className={`text-xs font-bold animate-pulse ${txStatusMessage.includes("Success") ? "text-green-400" : "text-yellow-400"}`}>
+                        <p className={`text-xs font-bold animate-pulse ${txStatusMessage.includes("Success") || txStatusMessage.includes("submitted") ? "text-green-400" : "text-yellow-400"}`}>
                             {txStatusMessage}
                         </p>
                     )}
                     <p className="text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
                         Note: Boost activity is experimental to increase Neynar score. 
-                        Contract is verified on <a href="https://base.blockscout.com/address/0x285E7E937059f93dAAF6845726e60CD22A865caF?tab=contract" target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300 transition">Blockscout</a>.
+                        Contract is verified on Blockscout.
                     </p>
                 </div>
             </div>
