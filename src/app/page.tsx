@@ -105,47 +105,50 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (UPDATED TO V2 API) ---
+  // --- LOGIC: GITCOIN SCORE (V2 API - FIXED) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
-        console.warn("Gitcoin Config Missing");
-        setGitcoinScore(null); return;
+      console.warn("Gitcoin Config Missing");
+      setGitcoinScore(null);
+      return;
     }
+
     try {
-        const scorePromises = addresses.map(async (addr) => {
-            try {
-                // UPDATE: Menggunakan Endpoint V2 (passport.xyz)
-                const response = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, {
-                    headers: { 
-                        "X-API-Key": GITCOIN_API_KEY,
-                        "Content-Type": "application/json"
-                    }
-                });
-                
-                if (!response.ok) {
-                    console.log("Gitcoin API Error:", response.status, await response.text());
-                    return 0;
-                }
-
-                const data = await response.json();
-                // Format V2: { score: "12.34", ... }
-                return data.score ? parseFloat(data.score) : 0;
-            } catch (e) {
-                console.error("Gitcoin fetch error per address:", e);
-                return 0;
+      const scorePromises = addresses.map(async (addr) => {
+        try {
+          const response = await fetch(
+            `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
+            {
+              headers: {
+                "X-API-Key": GITCOIN_API_KEY
+              }
             }
-        });
+          );
 
-        const scores = await Promise.all(scorePromises);
-        const maxScore = Math.max(...scores);
-        
-        console.log("Gitcoin Scores Found:", scores); // Debugging
+          if (!response.ok) {
+            console.error("Gitcoin API Error:", response.status, await response.text());
+            return 0;
+          }
 
-        // Jika score 0, kita anggap null agar tombol Create muncul
-        setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
+          const data = await response.json();
+          // V2 return: { score: "12.34", ... }
+          return data && data.score ? parseFloat(data.score) : 0;
+        } catch (e) {
+          console.error("Gitcoin fetch error per address:", e);
+          return 0;
+        }
+      });
+
+      const scores = await Promise.all(scorePromises);
+      const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
+
+      console.log("Gitcoin Scores Found:", scores); // Debugging
+
+      // Jika score 0, kita anggap null agar tombol Create muncul
+      setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
     } catch (e) {
-        console.error("Gitcoin Global Error:", e);
-        setGitcoinScore(null); 
+      console.error("Gitcoin Global Error:", e);
+      setGitcoinScore(null);
     }
   };
 
