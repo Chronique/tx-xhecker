@@ -118,7 +118,7 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (UPDATED DENGAN LOGIKA SNIPPET BARU) ---
+  // --- LOGIC: GITCOIN SCORE (LOGIKA SNIPPET TERBARU) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
         console.warn("Gitcoin Env Vars missing");
@@ -126,11 +126,9 @@ export default function Home() {
     }
 
     try {
-        // Kita cek setiap alamat wallet yang dimiliki user (Custody + Verified)
-        // karena user mungkin bikin Passport di wallet verified, bukan wallet custody.
         const scorePromises = addresses.map(async (addr) => {
             try {
-                // MENGGUNAKAN LOGIKA SNIPPET ANDA (Hanya X-API-Key, tanpa Content-Type)
+                // Fetch tanpa Content-Type header sesuai permintaan
                 const scoreResponse = await fetch(
                   `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
                   {
@@ -138,35 +136,26 @@ export default function Home() {
                   }
                 );
                 
-                if (!scoreResponse.ok) {
-                    console.log(`Gitcoin Error for ${addr}:`, scoreResponse.status);
-                    return 0;
-                }
+                if (!scoreResponse.ok) return 0;
 
                 const scoreData = await scoreResponse.json();
-                
-                // Parsing persis seperti snippet Anda
                 return scoreData && scoreData.score ? parseFloat(scoreData.score) : 0;
             } catch (e) { 
-                console.error("Gitcoin loop error:", e);
                 return 0; 
             }
         });
 
         const scores = await Promise.all(scorePromises);
-        
-        // Ambil skor tertinggi dari semua wallet
         const maxScore = Math.max(...scores);
 
-        console.log("Gitcoin Scores Found:", scores); // Cek console browser untuk debug
+        console.log("Gitcoin Scores Found:", scores); 
 
         if (maxScore > 0) {
             setGitcoinScore(maxScore.toFixed(2));
         } else {
-            setGitcoinScore(null); // Null agar tombol "Create" muncul jika 0
+            setGitcoinScore(null); 
         }
     } catch (e) {
-        console.error("Gitcoin Global Error:", e);
         setGitcoinScore(null); 
     }
   };
@@ -175,7 +164,6 @@ export default function Home() {
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) { setTalentScore(null); return; }
     
-    // Gunakan alamat utama (biasanya user pakai main wallet untuk Talent)
     const targetAddr = addresses[0]; 
 
     try {
@@ -209,7 +197,6 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
-        // Kumpulkan semua alamat wallet user
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
@@ -282,16 +269,18 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
                 
-                {/* --- DINAMIS BADGE --- */}
+                {/* --- DINAMIS BADGE (COLORS SWAPPED) --- */}
                 {isFullyVerified ? (
-                  <span className="bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-green-400" />
-                    <span className="text-[10px] font-bold text-green-400">BASED VERIFIED</span>
+                  // FULLY VERIFIED -> BLUE (Efek Glowing)
+                  <span className="bg-blue-500/20 px-3 py-1 rounded-full border border-blue-500 flex items-center gap-1 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse">
+                    <CheckCircle2 className="w-3 h-3 text-blue-400" />
+                    <span className="text-[10px] font-bold text-blue-400 tracking-wider">FULLY VERIFIED</span>
                   </span>
                 ) : isPartiallyVerified ? (
-                  <span className="bg-blue-500/20 px-2 py-0.5 rounded-full border border-blue-500 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-blue-400" />
-                    <span className="text-[10px] font-bold text-blue-400">VERIFIED</span>
+                  // PARTIAL VERIFIED -> GREEN
+                  <span className="bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-green-400" />
+                    <span className="text-[10px] font-bold text-green-400">VERIFIED</span>
                   </span>
                 ) : (
                   <span className="bg-red-500/20 px-2 py-0.5 rounded-full border border-red-500 flex items-center gap-1">
@@ -365,20 +354,26 @@ export default function Home() {
         {isConnected ? (
           <div className="space-y-4">
             
-            {/* 1. VERIFY SOCIAL (Base Verify) */}
+            {/* 1. VERIFY SOCIAL (Base Verify) - LIQUID EFFECT */}
             <div>
                 {isSocialVerified ? (
                     <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-blue-900/20 text-blue-400 border border-blue-500/50 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-default">
                         <Twitter className="w-4 h-4"/> SOCIAL VERIFIED
                     </a>
                 ) : (
-                    <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95">
-                        <Twitter className="w-4 h-4 text-blue-400"/> VERIFY SOCIAL (BASE)
+                    <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(14,165,233,0.6)] block text-center border border-sky-900">
+                        {/* Efek Liquid / Blob (Cyan/Sky) */}
+                        <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                        <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-sky-200 transition-colors">
+                            <Twitter className="w-4 h-4 text-sky-400 group-hover:text-white" />
+                            VERIFY SOCIAL (BASE)
+                        </div>
                     </a>
                 )}
             </div>
 
-            {/* 2. VERIFY IDENTITY (EAS / KYC) */}
+            {/* 2. VERIFY IDENTITY (EAS / KYC) - LIQUID EFFECT */}
             <div>
                 {isIdentityVerified ? (
                     <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-default">
@@ -387,7 +382,8 @@ export default function Home() {
                 ) : (
                     <div className="flex flex-col gap-1">
                         <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] block text-center border border-blue-900">
-                            <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                            {/* Efek Liquid / Blob (Blue) */}
+                            <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                             <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                             <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-blue-200 transition-colors">
                                 <ShieldCheck className="w-4 h-4 text-blue-400 group-hover:text-white" />
@@ -396,16 +392,18 @@ export default function Home() {
                         </a>
                         <p className="text-[9px] text-red-400 text-center flex items-center justify-center gap-1 mt-1">
                             <AlertTriangle className="w-3 h-3" />
-                            Use Smart Wallet (Base App) Only. Don't use Farcaster wallet.
+                            Use Smart Wallet (Base App). Don't use Farcaster wallet.
                         </p>
                     </div>
                 )}
             </div>
 
-            {/* 3. TOMBOL BOOST */}
+            {/* 3. TOMBOL BOOST - LIQUID EFFECT */}
             <div>
-                <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-gray-800 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:border-purple-500"}`}>
-                    {!isTxPending && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>}
+                <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
+                    {/* Efek Liquid / Blob (Purple) */}
+                    <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                     <span className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-sm tracking-wider group-hover:text-purple-200">
                         <Zap className={`w-5 h-5 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
                         {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
