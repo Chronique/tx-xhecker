@@ -12,7 +12,7 @@ import { Attribution } from "ox/erc8021";
 
 // --- KONFIGURASI ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
-// Pastikan variabel ini ada di .env.local
+// Pastikan variabel ini ada di .env.local dan Environment Variables Vercel
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
@@ -121,15 +121,16 @@ export default function Home() {
   // --- LOGIC: GITCOIN SCORE (UPDATED DENGAN LOGIKA SNIPPET BARU) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
+        console.warn("Gitcoin Env Vars missing");
         setGitcoinScore(null); return;
     }
 
     try {
         // Kita cek setiap alamat wallet yang dimiliki user (Custody + Verified)
+        // karena user mungkin bikin Passport di wallet verified, bukan wallet custody.
         const scorePromises = addresses.map(async (addr) => {
             try {
-                // Menggunakan fetch params persis seperti snippet yang Anda kirim
-                // (Tanpa header Content-Type, hanya X-API-Key)
+                // MENGGUNAKAN LOGIKA SNIPPET ANDA (Hanya X-API-Key, tanpa Content-Type)
                 const scoreResponse = await fetch(
                   `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
                   {
@@ -137,11 +138,14 @@ export default function Home() {
                   }
                 );
                 
-                if (!scoreResponse.ok) return 0;
+                if (!scoreResponse.ok) {
+                    console.log(`Gitcoin Error for ${addr}:`, scoreResponse.status);
+                    return 0;
+                }
 
                 const scoreData = await scoreResponse.json();
                 
-                // Parsing sesuai snippet
+                // Parsing persis seperti snippet Anda
                 return scoreData && scoreData.score ? parseFloat(scoreData.score) : 0;
             } catch (e) { 
                 console.error("Gitcoin loop error:", e);
@@ -151,15 +155,15 @@ export default function Home() {
 
         const scores = await Promise.all(scorePromises);
         
-        // Ambil skor tertinggi
+        // Ambil skor tertinggi dari semua wallet
         const maxScore = Math.max(...scores);
 
-        console.log("Gitcoin Scores Found:", scores); // Cek console untuk debug
+        console.log("Gitcoin Scores Found:", scores); // Cek console browser untuk debug
 
         if (maxScore > 0) {
             setGitcoinScore(maxScore.toFixed(2));
         } else {
-            setGitcoinScore(null); // Null agar tombol Create muncul
+            setGitcoinScore(null); // Null agar tombol "Create" muncul jika 0
         }
     } catch (e) {
         console.error("Gitcoin Global Error:", e);
@@ -282,7 +286,7 @@ export default function Home() {
                 {isFullyVerified ? (
                   <span className="bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-green-400" />
-                    <span className="text-[10px] font-bold text-green-400">FULLY VERIFIED</span>
+                    <span className="text-[10px] font-bold text-green-400">BASED VERIFIED</span>
                   </span>
                 ) : isPartiallyVerified ? (
                   <span className="bg-blue-500/20 px-2 py-0.5 rounded-full border border-blue-500 flex items-center gap-1">
