@@ -40,17 +40,10 @@ const BOOST_ABI = [
 const publicClient = createPublicClient({ chain: base, transport: http() });
 
 // --- SCHEMAS (EAS) ---
-// 1. Coinbase Verified Account (KYC/Identity)
 const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
-
-// 2. Base Verified Social (Twitter Schema ID)
-// Schema ini digunakan oleh verify.base.dev untuk verifikasi Twitter
+// Gunakan schema verified country/social yang umum sebagai proxy
 const SCHEMA_SOCIAL = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9"; 
-// Note: Jika verify.base.dev menggunakan schema yang sama dengan Identity untuk level basic,
-// kita gunakan ID yang sama dulu. Jika Anda verify Twitter spesifik, ID-nya bisa berbeda.
-// Tapi biasanya Coinbase Verify mencakup keduanya di onchain-verify.
-// Update: Jika verify.base.dev mengeluarkan atestasi yang berbeda, biasanya ini ID-nya:
-const SCHEMA_TWITTER_BASE = "0x6291a26f3020617306263907727103a088924375375772392462332997632626"; // Contoh Schema Twitter Base
+const SCHEMA_TWITTER_BASE = "0x6291a26f3020617306263907727103a088924375375772392462332997632626"; 
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -67,8 +60,8 @@ export default function Home() {
   const [talentScore, setTalentScore] = useState<string | null>(null);
   
   // Verification States
-  const [isIdentityVerified, setIsIdentityVerified] = useState(false); // EAS KYC
-  const [isSocialVerified, setIsSocialVerified] = useState(false);     // Verify Base Social
+  const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
+  const [isSocialVerified, setIsSocialVerified] = useState(false);     
   
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
@@ -87,7 +80,7 @@ export default function Home() {
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
 
-  // --- LOGIC: VERIFIKASI (EAS - Identity & Social) ---
+  // --- LOGIC: VERIFIKASI (EAS) ---
   const checkVerifications = async (addresses: string[]) => {
     try {
       const formattedAddresses = addresses.map(a => a.toLowerCase());
@@ -103,17 +96,14 @@ export default function Home() {
             }
           `,
           variables: {
-            // Cek Schema Identity (Coinbase Verified Account)
             whereIdentity: {
               schemaId: { equals: SCHEMA_IDENTITY },
               recipient: { in: formattedAddresses }, 
               revoked: { equals: false },
             },
-            // Cek Schema Social (Kita cek Twitter Base atau Identity lagi sebagai fallback)
             whereSocial: {
                OR: [
                  { schemaId: { equals: SCHEMA_IDENTITY }, recipient: { in: formattedAddresses }, revoked: { equals: false } },
-                 // Tambahkan pengecekan ke Schema Twitter jika Identity gagal
                  { schemaId: { equals: SCHEMA_TWITTER_BASE }, recipient: { in: formattedAddresses }, revoked: { equals: false } }
                ]
             }
@@ -122,11 +112,8 @@ export default function Home() {
       });
       const result = await response.json();
       
-      // Update State
       setIsIdentityVerified(result.data?.identity?.length > 0);
       
-      // Untuk Social, kita anggap verified jika Identity ada ATAU punya atestasi Twitter
-      // (Karena verify.base.dev seringkali terhubung dengan Coinbase Verify)
       const hasIdentity = result.data?.identity?.length > 0;
       const hasSocialSpecific = result.data?.social?.length > 0;
       setIsSocialVerified(hasIdentity || hasSocialSpecific);
@@ -136,61 +123,54 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (UPDATED TO V2 API) ---
+  // --- LOGIC: GITCOIN SCORE (INTEGRATED FROM YOUR SNIPPET) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
-      console.warn("Gitcoin Config Missing");
-      setGitcoinScore(null);
-      return;
+        setGitcoinScore(null); return;
     }
 
     try {
-      const scorePromises = addresses.map(async (addr) => {
-        try {
-          const response = await fetch(
-            `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
-            {
-              headers: {
-                "X-API-Key": GITCOIN_API_KEY
-              }
+        // Cek semua wallet user secara paralel (Penting untuk Farcaster!)
+        const scorePromises = addresses.map(async (addr) => {
+            try {
+                // Fetch Score (API V2)
+                const response = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, {
+                    headers: { "X-API-Key": GITCOIN_API_KEY }
+                });
+                
+                if (!response.ok) return 0;
+                
+                const data = await response.json();
+                
+                // Debugging: Cek di console browser untuk melihat respon asli Gitcoin
+                console.log(`Gitcoin Data for ${addr}:`, data);
+
+                return data && data.score ? parseFloat(data.score) : 0;
+            } catch (e) { 
+                return 0; 
             }
-          );
+        });
 
-          if (!response.ok) {
-            console.error("Gitcoin API Error:", response.status, await response.text());
-            return 0;
-          }
+        const scores = await Promise.all(scorePromises);
+        
+        // Ambil skor tertinggi dari semua wallet yang terkoneksi
+        const maxScore = Math.max(...scores);
 
-          const data = await response.json();
-          // V2 return: { score: "12.34", ... }
-          return data && data.score ? parseFloat(data.score) : 0;
-        } catch (e) {
-          console.error("Gitcoin fetch error per address:", e);
-          return 0;
-        }
-      });
-
-      const scores = await Promise.all(scorePromises);
-      const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
-
-      console.log("Gitcoin Scores Found:", scores); // Debugging
-
-      // Jika score 0, kita anggap null agar tombol Create muncul
-      setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
+        // Jika user punya skor > 0, tampilkan. Jika 0, tampilkan tombol Create.
+        setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
+        
     } catch (e) {
-      console.error("Gitcoin Global Error:", e);
-      setGitcoinScore(null);
+        console.error("Gitcoin Global Error:", e);
+        setGitcoinScore(null); 
     }
   };
 
-  // --- LOGIC: TALENT PROTOCOL SCORE (UPDATED) ---
+  // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
-    if (!TALENT_API_KEY) {
-        setTalentScore(null); return;
-    }
+    if (!TALENT_API_KEY) { setTalentScore(null); return; }
     
-    // Talent API bisa menerima wallet address langsung
-    const targetAddr = addresses[0]; // Cek alamat utama dulu
+    // Talent Protocol API Endpoint V2 (via /scores)
+    const targetAddr = addresses[0]; 
 
     try {
         const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
