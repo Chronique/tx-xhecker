@@ -128,7 +128,7 @@ export default function Home() {
     try {
         const scorePromises = addresses.map(async (addr) => {
             try {
-                // Fetch tanpa Content-Type header sesuai permintaan
+                // Fetch tanpa Content-Type header sesuai permintaan snippet Anda
                 const scoreResponse = await fetch(
                   `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
                   {
@@ -136,26 +136,39 @@ export default function Home() {
                   }
                 );
                 
-                if (!scoreResponse.ok) return 0;
+                if (!scoreResponse.ok) {
+                    // DEBUG: Lihat ini di Console Browser jika skor masih 0 atau error
+                    console.log(`Gitcoin Error for ${addr}:`, scoreResponse.status, await scoreResponse.text());
+                    return 0;
+                }
 
                 const scoreData = await scoreResponse.json();
+                
+                // DEBUG: Lihat data asli dari Gitcoin
+                console.log(`Gitcoin RAW Data for ${addr}:`, scoreData);
+
+                // Parsing persis seperti snippet Anda
                 return scoreData && scoreData.score ? parseFloat(scoreData.score) : 0;
             } catch (e) { 
+                console.error("Gitcoin fetch loop error:", e);
                 return 0; 
             }
         });
 
         const scores = await Promise.all(scorePromises);
+        
+        // Ambil skor tertinggi dari semua wallet
         const maxScore = Math.max(...scores);
 
-        console.log("Gitcoin Scores Found:", scores); 
+        console.log("FINAL Gitcoin Scores Found:", scores); 
 
         if (maxScore > 0) {
             setGitcoinScore(maxScore.toFixed(2));
         } else {
-            setGitcoinScore(null); 
+            setGitcoinScore(null); // Null agar tombol "Create" muncul jika 0
         }
     } catch (e) {
+        console.error("Gitcoin Global Error:", e);
         setGitcoinScore(null); 
     }
   };
@@ -164,6 +177,7 @@ export default function Home() {
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) { setTalentScore(null); return; }
     
+    // Gunakan alamat utama (biasanya user pakai main wallet untuk Talent)
     const targetAddr = addresses[0]; 
 
     try {
@@ -197,6 +211,7 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
+        // Kumpulkan semua alamat wallet user
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
