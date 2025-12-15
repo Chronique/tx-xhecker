@@ -105,52 +105,68 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (V2 API - FIXED) ---
-  const fetchGitcoinScore = async (addresses: string[]) => {
-    if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
-      console.warn("Gitcoin Config Missing");
-      setGitcoinScore(null);
-      return;
-    }
+  // --- LOGIC: GITCOIN SCORE (UPDATED TO V2 API) ---
+const fetchGitcoinScore = async (addresses: string[]) => {
+  if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
+    console.warn("Gitcoin Config Missing");
+    setGitcoinScore(null);
+    return;
+  }
 
-    try {
-      const scorePromises = addresses.map(async (addr) => {
-        try {
-          const response = await fetch(
-            `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
-            {
-              headers: {
-                "X-API-Key": GITCOIN_API_KEY
-              }
+  try {
+    const scorePromises = addresses.map(async (addr) => {
+      try {
+        const response = await fetch(
+          `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
+          {
+            headers: {
+              "X-API-Key": GITCOIN_API_KEY
             }
-          );
-
-          if (!response.ok) {
-            console.error("Gitcoin API Error:", response.status, await response.text());
-            return 0;
           }
+        );
 
-          const data = await response.json();
-          // V2 return: { score: "12.34", ... }
-          return data && data.score ? parseFloat(data.score) : 0;
-        } catch (e) {
-          console.error("Gitcoin fetch error per address:", e);
-          return 0;
+        if (!response.ok) {
+          console.error("Gitcoin API Error:", response.status, await response.text());
+          return { addr, score: 0 };
         }
-      });
 
-      const scores = await Promise.all(scorePromises);
-      const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
+        const data = await response.json();
+        const score = data && data.score ? parseFloat(data.score) : 0;
 
-      console.log("Gitcoin Scores Found:", scores); // Debugging
+        // Log detail per wallet
+        console.log(`Wallet: ${addr} → Score: ${score}`);
+        return { addr, score };
+      } catch (e) {
+        console.error("Gitcoin fetch error per address:", addr, e);
+        return { addr, score: 0 };
+      }
+    });
 
-      // Jika score 0, kita anggap null agar tombol Create muncul
-      setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
-    } catch (e) {
-      console.error("Gitcoin Global Error:", e);
-      setGitcoinScore(null);
+    const results = await Promise.all(scorePromises);
+
+    // Cari wallet dengan skor tertinggi
+    const maxResult = results.reduce(
+      (prev, curr) => (curr.score > prev.score ? curr : prev),
+      { addr: "", score: 0 }
+    );
+
+    console.log("Gitcoin Scores Found:", results);
+
+    // Jika score 0 semua, set null agar tombol Create muncul
+    setGitcoinScore(maxResult.score > 0 ? maxResult.score.toFixed(2) : null);
+
+    // Opsional: tampilkan wallet yang punya skor > 0
+    const validWallets = results.filter(r => r.score > 0);
+    if (validWallets.length > 0) {
+      console.log("Wallets with Passport:", validWallets);
+    } else {
+      console.log("No wallets with valid Passport found.");
     }
-  };
+  } catch (e) {
+    console.error("Gitcoin Global Error:", e);
+    setGitcoinScore(null);
+  }
+};
 
   // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
