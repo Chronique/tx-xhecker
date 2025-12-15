@@ -3,7 +3,7 @@ import { twMerge } from "tailwind-merge"
 
 export const METADATA = {
   name: "Base Stats Checker",
-  description: "Check your Neynar Score and Onchain Transaction Count on Base",
+  description: "Check your Score on base network easily",
   
   // --- GANTI KE LINK VERCEL KAMU + NAMA FILE DI PUBLIC ---
   heroImageUrl: 'https://tx-xhecker.vercel.app/banner.png', 
