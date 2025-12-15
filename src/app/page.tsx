@@ -144,20 +144,31 @@ export default function Home() {
 
   // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
-    if (!TALENT_API_KEY) { setTalentScore(null); return; }
-    const targetAddr = addresses[0]; 
+    if (!TALENT_API_KEY) {
+        setTalentScore(null); return;
+    }
+    
+    // Talent API bisa menerima wallet address langsung
+    const targetAddr = addresses[0]; // Cek alamat utama dulu
+
     try {
-        const response = await fetch(`https://api.talentprotocol.com/api/v2/passports/${targetAddr}`, {
+        const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
             headers: { "X-API-KEY": TALENT_API_KEY }
         });
-        if (!response.ok) { setTalentScore(null); return; }
         const data = await response.json();
-        if (data.passport && data.passport.score) {
-            setTalentScore(data.passport.score.toString());
+        
+        // Cari "builder_score" dari response
+        const builderScore = data.scores?.find((s: any) => s.slug === "builder_score");
+        
+        if (builderScore) {
+            setTalentScore(builderScore.points.toString());
         } else {
-            setTalentScore(null);
+            setTalentScore("0");
         }
-    } catch (e) { setTalentScore(null); }
+    } catch (e) {
+        console.error("Talent fetch error:", e);
+        setTalentScore(null);
+    }
   };
 
   // --- MAIN FETCH ---
