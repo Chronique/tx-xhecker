@@ -39,11 +39,9 @@ const BOOST_ABI = [
 
 const publicClient = createPublicClient({ chain: base, transport: http() });
 
-// --- SCHEMAS (EAS) ---
+// --- SCHEMAS (EAS BASE) ---
 const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
-// Gunakan schema verified country/social yang umum sebagai proxy
-const SCHEMA_SOCIAL = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9"; 
-const SCHEMA_TWITTER_BASE = "0x6291a26f3020617306263907727103a088924375375772392462332997632626"; 
+const SCHEMA_TWITTER = "0x6291a26f3020617306263907727103a088924375375772392462332997632626";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -103,8 +101,8 @@ export default function Home() {
             },
             whereSocial: {
                OR: [
-                 { schemaId: { equals: SCHEMA_IDENTITY }, recipient: { in: formattedAddresses }, revoked: { equals: false } },
-                 { schemaId: { equals: SCHEMA_TWITTER_BASE }, recipient: { in: formattedAddresses }, revoked: { equals: false } }
+                 { schemaId: { equals: SCHEMA_TWITTER }, recipient: { in: formattedAddresses }, revoked: { equals: false } },
+                 { schemaId: { equals: SCHEMA_IDENTITY }, recipient: { in: formattedAddresses }, revoked: { equals: false } }
                ]
             }
           },
@@ -113,52 +111,56 @@ export default function Home() {
       const result = await response.json();
       
       setIsIdentityVerified(result.data?.identity?.length > 0);
-      
-      const hasIdentity = result.data?.identity?.length > 0;
-      const hasSocialSpecific = result.data?.social?.length > 0;
-      setIsSocialVerified(hasIdentity || hasSocialSpecific);
+      setIsSocialVerified(result.data?.social?.length > 0);
 
     } catch (e) {
       console.error("Verification check failed:", e);
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE (INTEGRATED FROM YOUR SNIPPET) ---
+  // --- LOGIC: GITCOIN SCORE (UPDATED DENGAN LOGIKA SNIPPET BARU) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
         setGitcoinScore(null); return;
     }
 
     try {
-        // Cek semua wallet user secara paralel (Penting untuk Farcaster!)
+        // Kita cek setiap alamat wallet yang dimiliki user (Custody + Verified)
         const scorePromises = addresses.map(async (addr) => {
             try {
-                // Fetch Score (API V2)
-                const response = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, {
+                // Menggunakan fetch params persis seperti snippet yang Anda kirim
+                // (Tanpa header Content-Type, hanya X-API-Key)
+                const scoreResponse = await fetch(
+                  `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`,
+                  {
                     headers: { "X-API-Key": GITCOIN_API_KEY }
-                });
+                  }
+                );
                 
-                if (!response.ok) return 0;
-                
-                const data = await response.json();
-                
-                // Debugging: Cek di console browser untuk melihat respon asli Gitcoin
-                console.log(`Gitcoin Data for ${addr}:`, data);
+                if (!scoreResponse.ok) return 0;
 
-                return data && data.score ? parseFloat(data.score) : 0;
+                const scoreData = await scoreResponse.json();
+                
+                // Parsing sesuai snippet
+                return scoreData && scoreData.score ? parseFloat(scoreData.score) : 0;
             } catch (e) { 
+                console.error("Gitcoin loop error:", e);
                 return 0; 
             }
         });
 
         const scores = await Promise.all(scorePromises);
         
-        // Ambil skor tertinggi dari semua wallet yang terkoneksi
+        // Ambil skor tertinggi
         const maxScore = Math.max(...scores);
 
-        // Jika user punya skor > 0, tampilkan. Jika 0, tampilkan tombol Create.
-        setGitcoinScore(maxScore > 0 ? maxScore.toFixed(2) : null);
-        
+        console.log("Gitcoin Scores Found:", scores); // Cek console untuk debug
+
+        if (maxScore > 0) {
+            setGitcoinScore(maxScore.toFixed(2));
+        } else {
+            setGitcoinScore(null); // Null agar tombol Create muncul
+        }
     } catch (e) {
         console.error("Gitcoin Global Error:", e);
         setGitcoinScore(null); 
@@ -169,7 +171,7 @@ export default function Home() {
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) { setTalentScore(null); return; }
     
-    // Talent Protocol API Endpoint V2 (via /scores)
+    // Gunakan alamat utama (biasanya user pakai main wallet untuk Talent)
     const targetAddr = addresses[0]; 
 
     try {
@@ -178,7 +180,6 @@ export default function Home() {
         });
         const data = await response.json();
         
-        // Cari "builder_score" dari response
         const builderScore = data.scores?.find((s: any) => s.slug === "builder_score");
         
         if (builderScore) {
@@ -204,6 +205,7 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
+        // Kumpulkan semua alamat wallet user
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
@@ -287,7 +289,12 @@ export default function Home() {
                     <ShieldCheck className="w-3 h-3 text-blue-400" />
                     <span className="text-[10px] font-bold text-blue-400">VERIFIED</span>
                   </span>
-                ) : null}
+                ) : (
+                  <span className="bg-red-500/20 px-2 py-0.5 rounded-full border border-red-500 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-red-400" />
+                    <span className="text-[10px] font-bold text-red-400">UNVERIFIED</span>
+                  </span>
+                )}
                 {/* ------------------- */}
 
               </div>
