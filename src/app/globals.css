@@ -112,3 +112,59 @@ body {
     color: #ffffff; /* Selesai: Putih */
   }
 }
+
+/* --- DRIVER.JS TRANSPARENT POPOVER (GLASSMORPHISM) --- */
+.driver-popover {
+  background-color: rgba(15, 23, 42, 0.75) !important; /* Warna gelap transparan (Slate-900) */
+  backdrop-filter: blur(12px) !important; /* Efek Blur Kaca */
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important; /* Border tipis */
+  color: white !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+  padding: 15px 20px !important;
+}
+
+/* Judul Pop-up */
+.driver-popover-title {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #60a5fa !important; /* Biru muda */
+  margin-bottom: 8px !important;
+}
+
+/* Deskripsi Pop-up */
+.driver-popover-description {
+  font-size: 13px !important;
+  color: #e2e8f0 !important; /* Putih abu */
+  line-height: 1.6 !important;
+}
+
+/* Panah Pop-up (Arrow) - Biar ikut transparan */
+.driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: rgba(15, 23, 42, 0.75) !important;
+}
+.driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: rgba(15, 23, 42, 0.75) !important;
+}
+.driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: rgba(15, 23, 42, 0.75) !important;
+}
+.driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: rgba(15, 23, 42, 0.75) !important;
+}
+
+/* Tombol Next/Done */
+.driver-popover-footer button {
+  background-color: #3b82f6 !important; /* Biru */
+  color: white !important;
+  border-radius: 10px !important;
+  text-shadow: none !important;
+  border: none !important;
+  font-size: 11px !important;
+  padding: 8px 16px !important;
+  font-weight: bold !important;
+}
+.driver-popover-footer button:hover {
+  background-color: #2563eb !important;
+}
