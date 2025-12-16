@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base } from "viem/chains"; 
-import { sdk } from "@farcaster/miniapp-sdk"; // FIX: Menggunakan SDK terbaru
+import { sdk } from "@farcaster/miniapp-sdk";
 import { Star, Share2, Zap, CheckCircle2, ShieldCheck, AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
@@ -62,7 +62,7 @@ export default function Home() {
   
   // Loading State
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
-  const [manualAddress, setManualAddress] = useState(""); // State untuk input manual
+  const [manualAddress, setManualAddress] = useState(""); 
 
   // Auto-detect User
   useEffect(() => {
@@ -118,7 +118,7 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: GITCOIN SCORE FETCH ---
+  // --- LOGIC: GITCOIN SCORE FETCH (AUTO SCAN ALL WALLETS) ---
   const fetchGitcoinScore = async (addresses: string[]) => {
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
         console.warn("Gitcoin Env Vars missing");
@@ -126,6 +126,7 @@ export default function Home() {
     }
 
     try {
+        // Kita scan semua wallet yang dimiliki user
         const scorePromises = addresses.map(async (addr) => {
             try {
                 const scoreResponse = await fetch(
@@ -138,16 +139,24 @@ export default function Home() {
                 if (!scoreResponse.ok) return 0;
 
                 const scoreData = await scoreResponse.json();
-                return scoreData && scoreData.score ? parseFloat(scoreData.score) : 0;
+                
+                // Prioritaskan rawScore dari evidence (V2)
+                if (scoreData.evidence && scoreData.evidence.rawScore) {
+                    return parseFloat(scoreData.evidence.rawScore);
+                }
+                
+                return scoreData.score ? parseFloat(scoreData.score) : 0;
             } catch (e) { 
                 return 0; 
             }
         });
 
         const scores = await Promise.all(scorePromises);
+        
+        // Ambil skor tertinggi
         const maxScore = Math.max(...scores);
 
-        console.log("Gitcoin Scores:", scores); 
+        console.log("Gitcoin Scores Found:", scores); 
 
         if (maxScore > 0) {
             setGitcoinScore(maxScore.toFixed(2));
@@ -160,9 +169,9 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: SUBMIT PASSPORT & MANUAL CHECK ---
+  // --- LOGIC: SUBMIT PASSPORT ---
   const submitPassport = async (targetAddressOverride?: string) => {
-    // Tentukan alamat: Manual (jika diisi) atau Wallet User (default)
+    // Priority: 1. Manual Address -> 2. Connected Wallet -> 3. Alert
     const targetAddr = targetAddressOverride || address;
 
     if (!targetAddr) {
@@ -175,11 +184,11 @@ export default function Home() {
     }
     
     setIsSubmittingPassport(true);
-    setTxStatusMessage(`Submitting Passport for ${targetAddr.slice(0,6)}...`); 
+    setTxStatusMessage(`Submitting ${targetAddr.slice(0,6)}...`); 
 
     try {
       const response = await fetch(
-        `https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/submit`,
+        "https://api.passport.xyz/registry/submit-passport", // URL yang benar
         {
           method: "POST",
           headers: {
@@ -194,16 +203,14 @@ export default function Home() {
       );
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.error("Submit Failed:", errText);
-        setTxStatusMessage("Submit failed. Check Console/API Key.");
+        setTxStatusMessage("Submit failed. Check API Key.");
         setIsSubmittingPassport(false);
         return;
       }
 
-      setTxStatusMessage("Passport submitted! Updating score...");
+      setTxStatusMessage("Submitted! Refreshing score...");
       
-      // Fetch ulang skor untuk alamat target
+      // Fetch ulang khusus untuk alamat yang baru disubmit
       setTimeout(() => {
         fetchGitcoinScore([targetAddr]); 
         setTxStatusMessage("Score updated.");
@@ -222,12 +229,13 @@ export default function Home() {
           alert("Please enter a valid EVM address (0x...)");
           return;
       }
-      submitPassport(manualAddress); // Submit manual address
+      submitPassport(manualAddress); 
   };
 
   // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) { setTalentScore(null); return; }
+    // Talent biasanya cuma ngecek 1 address utama, kita coba address pertama
     const targetAddr = addresses[0]; 
     try {
         const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
@@ -245,7 +253,7 @@ export default function Home() {
     }
   };
 
-  // --- MAIN FETCH ---
+  // --- MAIN FETCH (AUTO DETECT ALL WALLETS) ---
   const fetchAddressAndStats = async (fid: number) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
@@ -257,6 +265,7 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
+        // Kumpulkan SEMUA alamat wallet user
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
@@ -264,8 +273,9 @@ export default function Home() {
         }
 
         if (allAddresses.length > 0) {
+            // Cek verifikasi & skor untuk SEMUA wallet sekaligus
             checkVerifications(allAddresses);
-            fetchGitcoinScore(allAddresses);
+            fetchGitcoinScore(allAddresses); // <-- Ini akan cari skor tertinggi
             fetchTalentScore(allAddresses); 
         }
       }
@@ -382,7 +392,7 @@ export default function Home() {
                     )}
                 </div>
 
-                {/* Gitcoin Card (DENGAN MANUAL CHECK) */}
+                {/* Gitcoin Card */}
                 <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-orange-500/30 flex flex-col relative overflow-hidden">
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-1">
@@ -421,13 +431,13 @@ export default function Home() {
                                 {isSubmittingPassport ? "..." : "Check"}
                             </button>
                         </div>
-                        {/* Tombol Check Wallet Sendiri (jika input kosong) */}
+                        {/* Tombol Check Wallet Sendiri */}
                         {!manualAddress && isConnected && (
                              <button 
                                 onClick={() => submitPassport()}
                                 className="text-[8px] text-gray-500 underline mt-1 w-full text-center hover:text-orange-300"
                              >
-                                or check connected wallet
+                                or calculate connected wallet
                              </button>
                         )}
                     </div>
@@ -495,7 +505,7 @@ export default function Home() {
 
                 <div className="text-center mt-3 space-y-2">
                     {txStatusMessage && (
-                        <p className={`text-xs font-bold animate-pulse ${txStatusMessage.includes("Success") || txStatusMessage.includes("submitted") ? "text-green-400" : "text-yellow-400"}`}>
+                        <p className={`text-xs font-bold animate-pulse ${txStatusMessage.includes("Success") || txStatusMessage.includes("Submitted") ? "text-green-400" : "text-yellow-400"}`}>
                             {txStatusMessage}
                         </p>
                     )}
