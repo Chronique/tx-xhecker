@@ -6,8 +6,8 @@ export const METADATA = {
   description: "Check your Score on base network easily",
   
   // --- GANTI KE LINK VERCEL KAMU + NAMA FILE DI PUBLIC ---
-  heroImageUrl: 'https://tx-xhecker.vercel.app/banner.png', 
-  bannerImageUrl: 'https://tx-xhecker.vercel.app/banner.png', 
+  heroImageUrl: 'https://tx-xhecker.vercel.app/banner.gif', 
+  bannerImageUrl: 'https://tx-xhecker.vercel.app/banner.gif', 
   
   // Kalau icon juga mau pakai yang di folder public (icon.png)
   iconImageUrl: 'https://tx-xhecker.vercel.app/icon.png',   
