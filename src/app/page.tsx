@@ -5,9 +5,13 @@ import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base } from "viem/chains"; 
 import { sdk } from "@farcaster/miniapp-sdk";
-import { Star, Share2, Zap, CheckCircle2, ShieldCheck, AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw } from "lucide-react"; 
+import { Star, Share2, Zap, CheckCircle2, ShieldCheck, AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle } from "lucide-react"; // Tambah HelpCircle
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
+
+// --- 1. IMPORT DRIVER.JS ---
+import { driver } from "driver.js";
+import "driver.js/dist/driver.css";
 
 // --- KONFIGURASI ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
@@ -62,6 +66,74 @@ export default function Home() {
   
   // Loading State
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
+
+  // --- 2. LOGIC PRODUCT TOUR ---
+  const startTour = () => {
+    const tourDriver = driver({
+      showProgress: true,
+      animate: true,
+      steps: [
+        {
+          element: '#profile-section',
+          popover: {
+            title: 'Your Identity',
+            description: 'This is your Farcaster profile and current verification status (Verified/Unverified).',
+            side: "bottom",
+            align: 'start'
+          }
+        },
+        {
+          element: '#neynar-card',
+          popover: {
+            title: 'Neynar Score',
+            description: 'Your reputation on Farcaster. Active users have higher scores.',
+            side: "bottom",
+            align: 'start'
+          }
+        },
+        {
+          element: '#talent-card',
+          popover: {
+            title: 'Builder Score',
+            description: 'Your reputation from Talent Protocol. Great for developers & builders.',
+            side: "left",
+            align: 'start'
+          }
+        },
+        {
+          element: '#gitcoin-card',
+          popover: {
+            title: 'Gitcoin Passport',
+            description: 'Prove you are a human, not a bot. Click "Manage" to add stamps if your score is low.',
+            side: "left",
+            align: 'start'
+          }
+        },
+        {
+          element: '#action-section',
+          popover: {
+            title: 'Actions & Boost',
+            description: 'Verify your social/identity on Base and BOOST your onchain activity here.',
+            side: "top",
+            align: 'start'
+          }
+        }
+      ]
+    });
+
+    tourDriver.drive();
+  };
+
+  // Auto-start tour on first visit (Optional)
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem('hasSeenReputationTour');
+    if (!hasSeenTour && isSDKLoaded) {
+       // Uncomment baris bawah jika ingin otomatis mulai saat pertama kali buka
+       // startTour();
+       // localStorage.setItem('hasSeenReputationTour', 'true');
+    }
+  }, [isSDKLoaded]);
+
 
   // Auto-detect User
   useEffect(() => {
@@ -125,7 +197,6 @@ export default function Home() {
     }
 
     try {
-        // Scan semua wallet user
         const scorePromises = addresses.map(async (addr) => {
             try {
                 const scoreResponse = await fetch(
@@ -139,7 +210,6 @@ export default function Home() {
 
                 const scoreData = await scoreResponse.json();
                 
-                // Prioritaskan rawScore (angka presisi) dari evidence
                 if (scoreData.evidence && scoreData.evidence.rawScore) {
                     return parseFloat(scoreData.evidence.rawScore);
                 }
@@ -166,7 +236,7 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: SUBMIT PASSPORT (CONNECTED WALLET ONLY) ---
+  // --- LOGIC: SUBMIT PASSPORT ---
   const submitPassport = async () => {
     if (!address) {
         alert("Please connect your wallet first.");
@@ -204,7 +274,6 @@ export default function Home() {
 
       setTxStatusMessage("Submitted! Refreshing...");
       
-      // Fetch ulang khusus connected wallet
       setTimeout(() => {
         fetchGitcoinScore([address]); 
         setTxStatusMessage("Score updated.");
@@ -238,7 +307,7 @@ export default function Home() {
     }
   };
 
-  // --- MAIN FETCH (AUTO DETECT) ---
+  // --- MAIN FETCH ---
   const fetchAddressAndStats = async (fid: number) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
@@ -250,7 +319,6 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         
-        // Kumpulkan SEMUA alamat wallet user
         const allAddresses: string[] = [];
         if (user.custody_address) allAddresses.push(user.custody_address);
         if (user.verified_addresses?.eth_addresses) {
@@ -258,7 +326,6 @@ export default function Home() {
         }
 
         if (allAddresses.length > 0) {
-            // Cek semua wallet sekaligus
             checkVerifications(allAddresses);
             fetchGitcoinScore(allAddresses); 
             fetchTalentScore(allAddresses); 
@@ -310,12 +377,20 @@ export default function Home() {
         <h1 className="text-3xl font-black whitespace-nowrap animate-marquee">
           REPUTATION CHECKER • BUILD YOUR ONCHAIN TRUST • REPUTATION CHECKER
         </h1>
+        {/* Tombol Tour di Pojok Kanan Atas */}
+        <button 
+            onClick={startTour}
+            className="absolute top-2 right-4 text-xs bg-gray-800/80 p-2 rounded-full border border-gray-700 hover:bg-gray-700 transition z-50"
+            title="Start Tour"
+        >
+            <HelpCircle className="w-4 h-4 text-white" />
+        </button>
       </div>
 
       <div className="bg-gray-900 p-6 rounded-xl border border-blue-500 mb-6 shadow-lg shadow-blue-500/20">
         
-        {/* HEADER USER */}
-        <div className="flex items-center gap-4 mb-6">
+        {/* HEADER USER (Tambahkan ID untuk Tour) */}
+        <div id="profile-section" className="flex items-center gap-4 mb-6">
              {farcasterUser?.pfpUrl && (
               <img src={farcasterUser.pfpUrl} alt="Profile" className="w-14 h-14 rounded-full border-2 border-white"/>
             )}
@@ -325,7 +400,7 @@ export default function Home() {
                 {isFullyVerified ? (
                   <span className="bg-blue-500/20 px-3 py-1 rounded-full border border-blue-500 flex items-center gap-1 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse">
                     <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                    <span className="text-[10px] font-bold text-blue-400 tracking-wider">BASED VERIFIED</span>
+                    <span className="text-[10px] font-bold text-blue-400 tracking-wider">FULLY VERIFIED</span>
                   </span>
                 ) : isPartiallyVerified ? (
                   <span className="bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 flex items-center gap-1">
@@ -346,8 +421,8 @@ export default function Home() {
         {/* --- GRID SCORES --- */}
         <div className="grid grid-cols-2 gap-4 mb-6">
              
-             {/* Kiri: Neynar Score */}
-             <div className="p-4 bg-gray-800 rounded-lg text-center border border-blue-500/30 flex flex-col justify-center items-center h-40 relative overflow-hidden">
+             {/* Kiri: Neynar Score (Tambahkan ID) */}
+             <div id="neynar-card" className="p-4 bg-gray-800 rounded-lg text-center border border-blue-500/30 flex flex-col justify-center items-center h-40 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8"></div>
                 <div className="flex items-center gap-1 mb-2">
                     <Zap className="w-4 h-4 text-blue-400" />
@@ -359,8 +434,8 @@ export default function Home() {
              {/* Kanan: Stacked Scores */}
              <div className="flex flex-col gap-3">
                 
-                {/* Talent Protocol */}
-                <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-purple-500/30 flex flex-col justify-center relative overflow-hidden">
+                {/* Talent Protocol (Tambahkan ID) */}
+                <div id="talent-card" className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-purple-500/30 flex flex-col justify-center relative overflow-hidden">
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-1">
                             <Code2 className="w-3 h-3 text-purple-400" />
@@ -377,8 +452,8 @@ export default function Home() {
                     )}
                 </div>
 
-                {/* Gitcoin Card (BERSIH - Tanpa Input Manual) */}
-                <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-orange-500/30 flex flex-col relative overflow-hidden">
+                {/* Gitcoin Card (Tambahkan ID) */}
+                <div id="gitcoin-card" className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-orange-500/30 flex flex-col relative overflow-hidden">
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-orange-400" />
@@ -406,7 +481,6 @@ export default function Home() {
                         ) : (
                             <div className="flex flex-col gap-1 mt-1">
                                 <p className="text-lg font-bold text-gray-600">0.00</p>
-                                {/* Tombol muncul jika skor 0 (mungkin user baru update passport) */}
                                 <button 
                                   onClick={submitPassport} 
                                   disabled={isSubmittingPassport}
@@ -426,9 +500,9 @@ export default function Home() {
              </div>
         </div>
 
-        {/* --- TOMBOL AKSI (FOOTER) --- */}
+        {/* --- TOMBOL AKSI (Tambahkan ID) --- */}
         {isConnected ? (
-          <div className="space-y-4">
+          <div id="action-section" className="space-y-4">
             
             {/* 1. VERIFY SOCIAL */}
             <div>
