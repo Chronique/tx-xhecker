@@ -62,7 +62,6 @@ export default function Home() {
   
   // Loading State
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
-  const [manualAddress, setManualAddress] = useState(""); 
 
   // Auto-detect User
   useEffect(() => {
@@ -126,7 +125,7 @@ export default function Home() {
     }
 
     try {
-        // Kita scan semua wallet yang dimiliki user
+        // Scan semua wallet user
         const scorePromises = addresses.map(async (addr) => {
             try {
                 const scoreResponse = await fetch(
@@ -140,7 +139,7 @@ export default function Home() {
 
                 const scoreData = await scoreResponse.json();
                 
-                // Prioritaskan rawScore dari evidence (V2)
+                // Prioritaskan rawScore (angka presisi) dari evidence
                 if (scoreData.evidence && scoreData.evidence.rawScore) {
                     return parseFloat(scoreData.evidence.rawScore);
                 }
@@ -152,8 +151,6 @@ export default function Home() {
         });
 
         const scores = await Promise.all(scorePromises);
-        
-        // Ambil skor tertinggi
         const maxScore = Math.max(...scores);
 
         console.log("Gitcoin Scores Found:", scores); 
@@ -169,13 +166,10 @@ export default function Home() {
     }
   };
 
-  // --- LOGIC: SUBMIT PASSPORT ---
-  const submitPassport = async (targetAddressOverride?: string) => {
-    // Priority: 1. Manual Address -> 2. Connected Wallet -> 3. Alert
-    const targetAddr = targetAddressOverride || address;
-
-    if (!targetAddr) {
-        alert("Please connect wallet or enter an address.");
+  // --- LOGIC: SUBMIT PASSPORT (CONNECTED WALLET ONLY) ---
+  const submitPassport = async () => {
+    if (!address) {
+        alert("Please connect your wallet first.");
         return;
     }
     if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) {
@@ -184,11 +178,11 @@ export default function Home() {
     }
     
     setIsSubmittingPassport(true);
-    setTxStatusMessage(`Submitting ${targetAddr.slice(0,6)}...`); 
+    setTxStatusMessage(`Submitting ${address.slice(0,6)}...`); 
 
     try {
       const response = await fetch(
-        "https://api.passport.xyz/registry/submit-passport", // URL yang benar
+        "https://api.passport.xyz/registry/submit-passport",
         {
           method: "POST",
           headers: {
@@ -196,23 +190,23 @@ export default function Home() {
             "X-API-Key": GITCOIN_API_KEY,
           },
           body: JSON.stringify({
-            address: targetAddr, 
+            address: address, 
             scorer_id: GITCOIN_SCORER_ID
           }),
         }
       );
 
       if (!response.ok) {
-        setTxStatusMessage("Submit failed. Check API Key.");
+        setTxStatusMessage("Submit failed.");
         setIsSubmittingPassport(false);
         return;
       }
 
-      setTxStatusMessage("Submitted! Refreshing score...");
+      setTxStatusMessage("Submitted! Refreshing...");
       
-      // Fetch ulang khusus untuk alamat yang baru disubmit
+      // Fetch ulang khusus connected wallet
       setTimeout(() => {
-        fetchGitcoinScore([targetAddr]); 
+        fetchGitcoinScore([address]); 
         setTxStatusMessage("Score updated.");
         setIsSubmittingPassport(false);
       }, 2000);
@@ -224,18 +218,9 @@ export default function Home() {
     }
   };
 
-  const handleManualCheck = () => {
-      if(!manualAddress || !manualAddress.startsWith("0x") || manualAddress.length !== 42) {
-          alert("Please enter a valid EVM address (0x...)");
-          return;
-      }
-      submitPassport(manualAddress); 
-  };
-
   // --- LOGIC: TALENT PROTOCOL SCORE ---
   const fetchTalentScore = async (addresses: string[]) => {
     if (!TALENT_API_KEY) { setTalentScore(null); return; }
-    // Talent biasanya cuma ngecek 1 address utama, kita coba address pertama
     const targetAddr = addresses[0]; 
     try {
         const response = await fetch(`https://api.talentprotocol.com/scores?id=${targetAddr}`, {
@@ -253,7 +238,7 @@ export default function Home() {
     }
   };
 
-  // --- MAIN FETCH (AUTO DETECT ALL WALLETS) ---
+  // --- MAIN FETCH (AUTO DETECT) ---
   const fetchAddressAndStats = async (fid: number) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
@@ -273,9 +258,9 @@ export default function Home() {
         }
 
         if (allAddresses.length > 0) {
-            // Cek verifikasi & skor untuk SEMUA wallet sekaligus
+            // Cek semua wallet sekaligus
             checkVerifications(allAddresses);
-            fetchGitcoinScore(allAddresses); // <-- Ini akan cari skor tertinggi
+            fetchGitcoinScore(allAddresses); 
             fetchTalentScore(allAddresses); 
         }
       }
@@ -392,7 +377,7 @@ export default function Home() {
                     )}
                 </div>
 
-                {/* Gitcoin Card */}
+                {/* Gitcoin Card (BERSIH - Tanpa Input Manual) */}
                 <div className="flex-1 p-3 bg-gray-800/80 rounded-lg border border-orange-500/30 flex flex-col relative overflow-hidden">
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-1">
@@ -407,38 +392,33 @@ export default function Home() {
                     {/* Tampilan Skor */}
                     <div className="flex-grow flex flex-col justify-center min-h-[40px]">
                         {gitcoinScore && parseFloat(gitcoinScore) > 0 ? (
-                            <p className="text-2xl font-bold text-orange-400">{gitcoinScore}</p>
+                            <div className="flex items-center justify-between mt-2">
+                                <p className="text-2xl font-bold text-orange-400">{gitcoinScore}</p>
+                                <button 
+                                  onClick={submitPassport} 
+                                  disabled={isSubmittingPassport}
+                                  className="text-gray-500 hover:text-white transition-colors"
+                                  title="Refresh Score (Connected Wallet)"
+                                >
+                                  <RefreshCcw className={`w-3 h-3 ${isSubmittingPassport ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
                         ) : (
-                            <p className="text-lg font-bold text-gray-600">0.00</p>
-                        )}
-                    </div>
-
-                    {/* INPUT MANUAL & TOMBOL CHECK */}
-                    <div className="mt-2 pt-2 border-t border-white/10">
-                        <div className="flex gap-1">
-                            <input 
-                                type="text" 
-                                placeholder="0x..." 
-                                value={manualAddress}
-                                onChange={(e) => setManualAddress(e.target.value)}
-                                className="w-full bg-black/50 text-[9px] text-white border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
-                            />
-                            <button 
-                                onClick={handleManualCheck}
-                                disabled={isSubmittingPassport}
-                                className="bg-orange-600 hover:bg-orange-500 text-white text-[9px] px-2 py-1 rounded font-bold transition-colors disabled:opacity-50"
-                            >
-                                {isSubmittingPassport ? "..." : "Check"}
-                            </button>
-                        </div>
-                        {/* Tombol Check Wallet Sendiri */}
-                        {!manualAddress && isConnected && (
-                             <button 
-                                onClick={() => submitPassport()}
-                                className="text-[8px] text-gray-500 underline mt-1 w-full text-center hover:text-orange-300"
-                             >
-                                or calculate connected wallet
-                             </button>
+                            <div className="flex flex-col gap-1 mt-1">
+                                <p className="text-lg font-bold text-gray-600">0.00</p>
+                                {/* Tombol muncul jika skor 0 (mungkin user baru update passport) */}
+                                <button 
+                                  onClick={submitPassport} 
+                                  disabled={isSubmittingPassport}
+                                  className={`text-[9px] w-full py-1 rounded font-bold transition-all border border-orange-500/50 ${
+                                    isSubmittingPassport 
+                                    ? 'bg-orange-900/50 text-gray-400 cursor-wait' 
+                                    : 'bg-orange-600 hover:bg-orange-500 text-white hover:shadow-[0_0_10px_rgba(249,115,22,0.4)]'
+                                  }`}
+                                >
+                                  {isSubmittingPassport ? "Calculating..." : "Tap to Calculate"}
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -446,7 +426,7 @@ export default function Home() {
              </div>
         </div>
 
-        {/* --- TOMBOL AKSI --- */}
+        {/* --- TOMBOL AKSI (FOOTER) --- */}
         {isConnected ? (
           <div className="space-y-4">
             
