@@ -63,33 +63,36 @@ export default function Home() {
   const [isAdded, setIsAdded] = useState(false); 
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
 
-  // --- TOUR LOGIC (GLASSMORPHISM) ---
+  // --- TOUR LOGIC (Fixed Positions & Steps) ---
   const startTour = () => {
     const tourDriver = driver({
       showProgress: true,
       animate: true,
-      // Class ini akan memanggil CSS Glassmorphism yang sudah kita buat di globals.css
-      popoverClass: 'driver-popover', 
+      popoverClass: 'driver-popover', // Menggunakan CSS Transparan di globals.css
       steps: [
         {
           element: '#header-anim',
-          popover: { title: 'Welcome!', description: 'This tool helps you analyze and boost your onchain reputation.', side: "bottom" }
+          popover: { title: 'Welcome!', description: 'Check your onchain reputation & boost your score.', side: "bottom" }
         },
         {
-          element: '#profile-card',
-          popover: { title: 'Identity Status', description: 'Your current verification badges. Aim for "Fully Verified" to be trusted.', side: "bottom" }
+          element: '#verification-status', // FIX: Menunjuk spesifik ke Badge
+          popover: { title: 'Your Status', description: 'This badge shows if you are Verified Human on Base.', side: "bottom" }
         },
         {
-          element: '#neynar-score',
-          popover: { title: 'Neynar Score', description: 'Measures your activity on Farcaster. Post more to increase this!', side: "top" }
+          element: '#neynar-card',
+          popover: { title: 'Neynar Score', description: 'Your activity score on Farcaster.', side: "top" }
+        },
+        {
+          element: '#talent-card', // FIX: Talent Protocol ditambahkan
+          popover: { title: 'Talent Score', description: 'Your builder reputation score.', side: "top" }
         },
         {
           element: '#gitcoin-card',
-          popover: { title: 'Gitcoin Passport', description: 'Anti-Sybil score. If your score is 0, click the button to Calculate.', side: "top" }
+          popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" }
         },
         {
-          element: '#boost-btn',
-          popover: { title: 'Boost Activity', description: 'Perform a real onchain transaction here to boost your wallet history.', side: "top" }
+          element: '#action-buttons', // FIX: Menunjuk area tombol
+          popover: { title: 'Action Area', description: 'Verify your identity and BOOST your onchain activity here.', side: "top" }
         }
       ]
     });
@@ -106,11 +109,10 @@ export default function Home() {
         setIsSDKLoaded(true);
         fetchAddressAndStats(context.user.fid);
         
-        // Auto start tour on first visit
-        const hasSeen = localStorage.getItem('tour_seen_v3');
+        const hasSeen = localStorage.getItem('tour_seen_v4'); // Versi baru agar muncul lagi
         if(!hasSeen) {
-            setTimeout(() => startTour(), 2000); // Tunggu animasi selesai baru tour mulai
-            localStorage.setItem('tour_seen_v3', 'true');
+            setTimeout(() => startTour(), 2000); 
+            localStorage.setItem('tour_seen_v4', 'true');
         }
       }
     };
@@ -227,58 +229,36 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono overflow-x-hidden relative">
       
-      {/* === HEADER BARU DENGAN ANIMASI REVEAL === */}
+      {/* === HEADER (Animasi Logo) === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-gray-800/50">
-          
-          {/* Logo & Text Animation Container */}
           <div className="flex items-center gap-4 relative overflow-visible">
-              
-              {/* 1. LOGO (Posisi di Depan/Atas - z-20) */}
+              {/* Logo */}
               <motion.div 
-                  initial={{ scale: 0, rotate: -90 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                  initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}
                   className="relative z-20 flex-none w-12 h-12 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-white/10"
               >
                   <ShieldCheck className="text-white w-7 h-7" />
               </motion.div>
-
-              {/* 2. TEKS (Posisi di Belakang Logo - z-10) */}
+              {/* Teks */}
               <motion.div
-                  initial={{ x: -60, opacity: 0 }} // Mulai sembunyi di belakang logo
-                  animate={{ x: 0, opacity: 1 }}   // Geser ke kanan (muncul)
-                  transition={{ delay: 0.4, type: "spring", stiffness: 100 }} // Delay agar muncul setelah logo
-                  className="relative z-10 flex flex-col justify-center pl-2" // pl-2 biar ada jarak
+                  initial={{ x: -60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4, type: "spring", stiffness: 100 }}
+                  className="relative z-10 flex flex-col justify-center pl-2"
               >
-                  <h1 className="text-xl font-black italic tracking-tighter text-white leading-none">
-                      REPUTATION
-                  </h1>
-                  <h1 className="text-xl font-black italic tracking-tighter text-blue-500 leading-none">
-                      CHECKER
-                  </h1>
-                  <p className="text-[8px] text-gray-500 mt-1 font-bold tracking-widest uppercase">
-                      Build Onchain Trust
-                  </p>
+                  <h1 className="text-xl font-black italic tracking-tighter text-white leading-none">REPUTATION</h1>
+                  <h1 className="text-xl font-black italic tracking-tighter text-blue-500 leading-none">CHECKER</h1>
+                  <p className="text-[8px] text-gray-500 mt-1 font-bold tracking-widest uppercase">Build Onchain Trust</p>
               </motion.div>
           </div>
-
-          {/* Tombol Help/Tour */}
-          <button 
-              onClick={startTour}
-              className="p-2 text-gray-500 hover:text-white transition bg-gray-900/50 rounded-full border border-gray-800 hover:bg-gray-800"
-              title="Start Tutorial"
-          >
+          {/* Tombol Tour */}
+          <button onClick={startTour} className="p-2 text-gray-500 hover:text-white transition bg-gray-900/50 rounded-full border border-gray-800 hover:bg-gray-800" title="Start Tutorial">
               <HelpCircle className="w-5 h-5" />
           </button>
       </div>
 
-      {/* MAIN CARD */}
+      {/* MAIN CARD PROFILE */}
       <div id="profile-card" className="bg-gray-900/50 backdrop-blur-sm p-6 rounded-2xl border border-blue-500/30 mb-6 shadow-xl relative overflow-hidden">
-        
-        {/* Dekorasi Background */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
-        {/* HEADER USER */}
         <div className="flex items-center gap-4 mb-6 relative z-10">
              {farcasterUser?.pfpUrl && (
               <img src={farcasterUser.pfpUrl} alt="Profile" className="w-14 h-14 rounded-full border-2 border-gray-700 shadow-md"/>
@@ -286,36 +266,39 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
-                {isFullyVerified ? (
-                  <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
-                    <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                    <span className="text-[9px] font-bold text-blue-300 tracking-wider">BASED VERIFIED</span>
-                  </span>
-                ) : isPartiallyVerified ? (
-                  <span className="bg-green-900/30 px-2 py-0.5 rounded border border-green-500/50 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-green-400" />
-                    <span className="text-[9px] font-bold text-green-300">VERIFIED</span>
-                  </span>
-                ) : (
-                  <span className="bg-red-900/30 px-2 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 text-red-400" />
-                    <span className="text-[9px] font-bold text-red-300">UNVERIFIED</span>
-                  </span>
-                )}
+                
+                {/* ID KHUSUS UNTUK TOUR VERIFIED */}
+                <div id="verification-status">
+                    {isFullyVerified ? (
+                    <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)] animate-pulse">
+                        <CheckCircle2 className="w-3 h-3 text-blue-400" />
+                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">VERIFIED</span>
+                    </span>
+                    ) : isPartiallyVerified ? (
+                    <span className="bg-green-900/30 px-2 py-0.5 rounded border border-green-500/50 flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3 text-green-400" />
+                        <span className="text-[9px] font-bold text-green-300">PARTIAL</span>
+                    </span>
+                    ) : (
+                    <span className="bg-red-900/30 px-2 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-red-400" />
+                        <span className="text-[9px] font-bold text-red-300">UNVERIFIED</span>
+                    </span>
+                    )}
+                </div>
+
               </div>
               <p className="text-xs text-gray-500 font-mono mt-0.5">FID: {farcasterUser?.fid || "..."}</p>
             </div>
         </div>
 
-        {/* --- GRID SCORES --- */}
+        {/* --- SCORES GRID --- */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
              
-             {/* Kiri: Neynar Score */}
-             <div id="neynar-score" className="p-4 bg-black/40 rounded-xl text-center border border-gray-800 flex flex-col justify-center items-center h-32 relative overflow-hidden group hover:border-blue-500/50 transition-colors">
+             {/* 1. Neynar Score */}
+             <div id="neynar-card" className="p-4 bg-black/40 rounded-xl text-center border border-gray-800 flex flex-col justify-center items-center h-32 relative overflow-hidden group hover:border-blue-500/50 transition-colors">
                 <div className="flex items-center gap-1.5 mb-2">
-                    <div className="p-1 bg-blue-500/20 rounded-md">
-                        <Zap className="w-3 h-3 text-blue-400" />
-                    </div>
+                    <div className="p-1 bg-blue-500/20 rounded-md"><Zap className="w-3 h-3 text-blue-400" /></div>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Neynar</p>
                 </div>
                 <p className="text-3xl font-black text-white">{neynarScore}</p>
@@ -324,8 +307,8 @@ export default function Home() {
              {/* Kanan: Stacked Scores */}
              <div className="flex flex-col gap-2">
                 
-                {/* Talent Protocol */}
-                <div className="flex-1 p-2.5 bg-black/40 rounded-xl border border-gray-800 flex flex-col justify-center relative overflow-hidden">
+                {/* 2. Talent Protocol (ID KHUSUS) */}
+                <div id="talent-card" className="flex-1 p-2.5 bg-black/40 rounded-xl border border-gray-800 flex flex-col justify-center relative overflow-hidden">
                     <div className="flex justify-between items-center mb-1">
                         <div className="flex items-center gap-1.5">
                             <Code2 className="w-3 h-3 text-purple-400" />
@@ -336,7 +319,7 @@ export default function Home() {
                     <p className="text-lg font-bold text-purple-300">{talentScore || "0"}</p>
                 </div>
 
-                {/* Gitcoin Card */}
+                {/* 3. Gitcoin Card */}
                 <div id="gitcoin-card" className="flex-1 p-2.5 bg-black/40 rounded-xl border border-gray-800 flex flex-col justify-center relative overflow-hidden">
                     <div className="flex justify-between items-center mb-1">
                         <div className="flex items-center gap-1.5">
@@ -345,15 +328,9 @@ export default function Home() {
                         </div>
                         <a href="https://passport.gitcoin.co/" target="_blank" className="text-[8px] text-orange-400 hover:underline">Manage</a>
                     </div>
-
                     <div className="flex items-center justify-between">
                         <p className="text-lg font-bold text-orange-300">{gitcoinScore && parseFloat(gitcoinScore) > 0 ? gitcoinScore : "0.00"}</p>
-                        
-                        <button 
-                            onClick={submitPassport} 
-                            disabled={isSubmittingPassport} 
-                            className={`p-1 rounded-md transition-all ${isSubmittingPassport ? 'bg-orange-900/30' : 'bg-orange-500/10 hover:bg-orange-500/30 text-orange-400'}`}
-                        >
+                        <button onClick={submitPassport} disabled={isSubmittingPassport} className={`p-1 rounded-md transition-all ${isSubmittingPassport ? 'bg-orange-900/30' : 'bg-orange-500/10 hover:bg-orange-500/30 text-orange-400'}`}>
                             <RefreshCcw className={`w-3 h-3 ${isSubmittingPassport ? 'animate-spin' : ''}`} />
                         </button>
                     </div>
@@ -362,24 +339,63 @@ export default function Home() {
              </div>
         </div>
 
-        {/* --- TOMBOL AKSI --- */}
+        {/* --- TOMBOL AKSI (LIQUID EFFECT RESTORED) --- */}
         {isConnected ? (
-          <div className="space-y-3 relative z-10">
-            {/* 1. VERIFY SOCIAL */}
-            <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className={`block w-full py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${isSocialVerified ? 'bg-blue-900/20 text-blue-400 border border-blue-500/30' : 'bg-black border border-gray-800 hover:border-blue-500/50 text-gray-300 hover:text-white'}`}>
-                <Twitter className="w-4 h-4"/> {isSocialVerified ? "SOCIAL VERIFIED" : "VERIFY SOCIAL (BASE)"}
-            </a>
+          <div id="action-buttons" className="space-y-3 relative z-10">
+            
+            {/* 1. VERIFY SOCIAL (LIQUID EFFECT) */}
+            <div>
+                {isSocialVerified ? (
+                    <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-blue-900/20 text-blue-400 border border-blue-500/50 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-default">
+                        <Twitter className="w-4 h-4"/> SOCIAL VERIFIED
+                    </a>
+                ) : (
+                    <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(14,165,233,0.6)] block text-center border border-sky-900">
+                        {/* Efek Liquid / Blob (Cyan/Sky) */}
+                        <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                        <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-sky-200 transition-colors">
+                            <Twitter className="w-4 h-4 text-sky-400 group-hover:text-white" />
+                            VERIFY SOCIAL (BASE)
+                        </div>
+                    </a>
+                )}
+            </div>
 
-            {/* 2. VERIFY IDENTITY */}
-            <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className={`block w-full py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${isIdentityVerified ? 'bg-green-900/20 text-green-400 border border-green-500/30' : 'bg-black border border-gray-800 hover:border-green-500/50 text-gray-300 hover:text-white'}`}>
-                <Fingerprint className="w-4 h-4"/> {isIdentityVerified ? "IDENTITY VERIFIED" : "VERIFY IDENTITY (EAS)"}
-            </a>
+            {/* 2. VERIFY IDENTITY (LIQUID EFFECT) */}
+            <div>
+                {isIdentityVerified ? (
+                    <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-default">
+                        <Fingerprint className="w-4 h-4"/> IDENTITY VERIFIED
+                    </a>
+                ) : (
+                    <div className="flex flex-col gap-1">
+                        <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] block text-center border border-blue-900">
+                            {/* Efek Liquid / Blob (Blue) */}
+                            <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                            <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-blue-200 transition-colors">
+                                <ShieldCheck className="w-4 h-4 text-blue-400 group-hover:text-white" />
+                                VERIFY IDENTITY (EAS)
+                            </div>
+                        </a>
+                        <p className="text-[9px] text-red-400 text-center flex items-center justify-center gap-1 mt-1">
+                            <AlertTriangle className="w-3 h-3" /> Use Smart Wallet (Base App). Don't use Farcaster wallet.
+                        </p>
+                    </div>
+                )}
+            </div>
 
-            {/* 3. TOMBOL BOOST */}
+            {/* 3. TOMBOL BOOST (LIQUID EFFECT) */}
             <div id="boost-btn">
-                <button onClick={handleBoostActivity} disabled={isTxPending} className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border ${isTxPending ? "bg-gray-800 text-gray-500 border-gray-700" : "bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-purple-500/30 hover:border-purple-400 text-white hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]"}`}>
-                    <Zap className={`w-4 h-4 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill="currentColor" />
-                    {isTxPending ? "PROCESSING..." : "BOOST ONCHAIN ACTIVITY (+1 TX)"}
+                <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
+                    {/* Efek Liquid / Blob (Purple) */}
+                    <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                    <span className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-purple-200">
+                        <Zap className={`w-4 h-4 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
+                        {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
+                    </span>
                 </button>
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-gray-400 animate-pulse">{txStatusMessage}</p>}
             </div>
