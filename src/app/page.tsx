@@ -5,9 +5,24 @@ import { useAccount, useConnect, useSendTransaction } from "wagmi";
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base } from "viem/chains"; 
 import { sdk } from "@farcaster/miniapp-sdk";
-import { Star, Share2, Zap, CheckCircle2, ShieldCheck, AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle } from "lucide-react"; 
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
+
+// --- IMPORT ICON (DIPERBAIKI: Menggabungkan Lucide & React Icons) ---
+import { MdContentPasteSearch } from "react-icons/md"; // Logo Baru
+import { 
+  Star, 
+  Share2, 
+  Zap, 
+  CheckCircle2, 
+  ShieldCheck, // Ikon ini wajib ada untuk status Verified
+  AlertTriangle, 
+  Code2, 
+  Twitter, 
+  Fingerprint, 
+  RefreshCcw, 
+  HelpCircle 
+} from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
 import { motion } from "framer-motion";
@@ -63,19 +78,19 @@ export default function Home() {
   const [isAdded, setIsAdded] = useState(false); 
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
 
-  // --- TOUR LOGIC (Fixed Positions & Steps) ---
+  // --- TOUR LOGIC ---
   const startTour = () => {
     const tourDriver = driver({
       showProgress: true,
       animate: true,
-      popoverClass: 'driver-popover', // Menggunakan CSS Transparan di globals.css
+      popoverClass: 'driver-popover', 
       steps: [
         {
           element: '#header-anim',
           popover: { title: 'Welcome!', description: 'Check your onchain reputation & boost your score.', side: "bottom" }
         },
         {
-          element: '#verification-status', // FIX: Menunjuk spesifik ke Badge
+          element: '#verification-status', 
           popover: { title: 'Your Status', description: 'This badge shows if you are Verified Human on Base.', side: "bottom" }
         },
         {
@@ -83,7 +98,7 @@ export default function Home() {
           popover: { title: 'Neynar Score', description: 'Your activity score on Farcaster.', side: "top" }
         },
         {
-          element: '#talent-card', // FIX: Talent Protocol ditambahkan
+          element: '#talent-card', 
           popover: { title: 'Talent Score', description: 'Your builder reputation score.', side: "top" }
         },
         {
@@ -91,7 +106,7 @@ export default function Home() {
           popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" }
         },
         {
-          element: '#action-buttons', // FIX: Menunjuk area tombol
+          element: '#action-buttons', 
           popover: { title: 'Action Area', description: 'Verify your identity and BOOST your onchain activity here.', side: "top" }
         }
       ]
@@ -109,7 +124,7 @@ export default function Home() {
         setIsSDKLoaded(true);
         fetchAddressAndStats(context.user.fid);
         
-        const hasSeen = localStorage.getItem('tour_seen_v4'); // Versi baru agar muncul lagi
+        const hasSeen = localStorage.getItem('tour_seen_v4'); 
         if(!hasSeen) {
             setTimeout(() => startTour(), 2000); 
             localStorage.setItem('tour_seen_v4', 'true');
@@ -232,21 +247,23 @@ export default function Home() {
       {/* === HEADER (Animasi Logo) === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-gray-800/50">
           <div className="flex items-center gap-4 relative overflow-visible">
-              {/* Logo */}
+              
+              {/* Logo Material Design Baru */}
               <motion.div 
                   initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                  className="relative z-20 flex-none w-12 h-12 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-white/10"
+                  className="relative z-20 flex-none w-12 h-12 bg-[#0052FF] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,82,255,0.5)] border border-white/20"
               >
-                  <ShieldCheck className="text-white w-7 h-7" />
+                  <MdContentPasteSearch className="text-white w-7 h-7" />
               </motion.div>
+
               {/* Teks */}
               <motion.div
                   initial={{ x: -60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4, type: "spring", stiffness: 100 }}
                   className="relative z-10 flex flex-col justify-center pl-2"
               >
-                  <h1 className="text-xl font-black italic tracking-tighter text-white leading-none">REPUTATION</h1>
+                  <h1 className="text-xl font-black italic tracking-tighter text-white leading-none">BASE STATS</h1>
                   <h1 className="text-xl font-black italic tracking-tighter text-blue-500 leading-none">CHECKER</h1>
-                  <p className="text-[8px] text-gray-500 mt-1 font-bold tracking-widest uppercase">Build Onchain Trust</p>
+                  <p className="text-[8px] text-gray-500 mt-1 font-bold tracking-widest uppercase">Check your reputation score</p>
               </motion.div>
           </div>
           {/* Tombol Tour */}
@@ -272,12 +289,12 @@ export default function Home() {
                     {isFullyVerified ? (
                     <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)] animate-pulse">
                         <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">BASED VERIFIED</span>
+                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">VERIFIED</span>
                     </span>
                     ) : isPartiallyVerified ? (
                     <span className="bg-green-900/30 px-2 py-0.5 rounded border border-green-500/50 flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3 text-green-400" />
-                        <span className="text-[9px] font-bold text-green-300">VERIFIED</span>
+                        <span className="text-[9px] font-bold text-green-300">PARTIAL</span>
                     </span>
                     ) : (
                     <span className="bg-red-900/30 px-2 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
