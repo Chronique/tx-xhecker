@@ -289,12 +289,12 @@ export default function Home() {
                 {isFullyVerified ? (
                   <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
                     <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                    <span className="text-[9px] font-bold text-blue-300 tracking-wider">VERIFIED</span>
+                    <span className="text-[9px] font-bold text-blue-300 tracking-wider">BASED VERIFIED</span>
                   </span>
                 ) : isPartiallyVerified ? (
                   <span className="bg-green-900/30 px-2 py-0.5 rounded border border-green-500/50 flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-green-400" />
-                    <span className="text-[9px] font-bold text-green-300">PARTIAL</span>
+                    <span className="text-[9px] font-bold text-green-300">VERIFIED</span>
                   </span>
                 ) : (
                   <span className="bg-red-900/30 px-2 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
