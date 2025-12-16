@@ -325,7 +325,7 @@ export default function Home() {
                 {isFullyVerified ? (
                   <span className="bg-blue-500/20 px-3 py-1 rounded-full border border-blue-500 flex items-center gap-1 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse">
                     <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                    <span className="text-[10px] font-bold text-blue-400 tracking-wider">FULLY VERIFIED</span>
+                    <span className="text-[10px] font-bold text-blue-400 tracking-wider">BASED VERIFIED</span>
                   </span>
                 ) : isPartiallyVerified ? (
                   <span className="bg-green-500/20 px-2 py-0.5 rounded-full border border-green-500 flex items-center gap-1">
