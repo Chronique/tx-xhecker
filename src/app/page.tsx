@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useAccount, useConnect } from "wagmi";
-// 1. UPDATE: Gunakan hooks experimental untuk Paymaster support
 import { useCapabilities, useWriteContracts } from "wagmi/experimental"; 
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base } from "viem/chains"; 
@@ -28,7 +27,6 @@ const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY;
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
 
-// 2. TAMBAHAN: URL Paymaster (Wajib diisi di .env.local)
 const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL || ""; 
 
 const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF"; 
@@ -56,31 +54,38 @@ export default function Home() {
   const { address, isConnected, chainId } = useAccount(); 
   const { connectors, connect } = useConnect();
   
-  // 3. UPDATE: Ganti useSendTransaction dengan useWriteContracts
   const { writeContracts, isPending: isTxPending } = useWriteContracts();
 
-  // 4. UPDATE: Cek Capabilities Wallet (Paymaster Support)
+  // FIX 1: Tambahkan error handling pada useCapabilities agar tidak crash di Farcaster
   const { data: availableCapabilities } = useCapabilities({
     account: address,
+    query: {
+      enabled: !!address, // Hanya jalan jika address ada
+      retry: false,       // Jangan retry jika gagal (supaya tidak hang)
+    } 
   });
 
-  // 5. UPDATE: Konstruksi Object Capabilities
   const capabilities = useMemo(() => {
-    if (!availableCapabilities || !chainId || !PAYMASTER_URL) return {};
+    // FIX 2: Validasi ketat. Jika salah satu komponen tidak ada, return kosong (mode bayar sendiri)
+    if (!availableCapabilities || !chainId || !PAYMASTER_URL) return undefined;
+    
     const capabilitiesForChain = availableCapabilities[chainId];
     
-    // Cek apakah wallet mendukung paymasterService (ERC-7677)
+    // Cek apakah wallet mendukung Paymaster (Hanya Coinbase Smart Wallet yang biasanya tembus sini)
     if (
+      capabilitiesForChain &&
       capabilitiesForChain["paymasterService"] &&
       capabilitiesForChain["paymasterService"].supported
     ) {
       return {
         paymasterService: {
-          url: PAYMASTER_URL, // URL Paymaster dari .env
+          url: PAYMASTER_URL, 
         },
       };
     }
-    return {};
+    
+    // Default: return undefined (transaksi reguler)
+    return undefined;
   }, [availableCapabilities, chainId]);
 
   // State lainnya
@@ -95,13 +100,12 @@ export default function Home() {
   const [isAdded, setIsAdded] = useState(false); 
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
 
-  // --- LOGIC BOOST ACTIVITY (UPDATED FOR PAYMASTER) ---
   const handleBoostActivity = () => { 
     if (!address) return;
-    setTxStatusMessage("Checking wallet capabilities...");
+    setTxStatusMessage("Processing transaction...");
 
     try {
-        // Kita gunakan writeContracts agar mendukung Paymaster
+        // FIX 3: Gunakan variabel capabilities yang sudah 'aman'
         writeContracts({
             contracts: [
                 {
@@ -111,19 +115,26 @@ export default function Home() {
                     args: [],
                 }
             ],
-            capabilities, // Masukkan capabilities paymaster di sini
+            capabilities, // Jika undefined, wagmi akan otomatis pakai mode biasa (bayar gas)
         }, {
-            onSuccess: () => setTxStatusMessage("Success! Activity boosted (Gasless if supported)."),
+            onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
             onError: (err) => {
-                console.error(err);
-                setTxStatusMessage("Cancelled or failed.");
+                console.error("Tx Error:", err);
+                // Pesan error lebih ramah
+                setTxStatusMessage("Failed. Please try again or check your balance.");
             }
         });
-    } catch (err: any) { console.error("Error:", err); }
+    } catch (err: any) { 
+        console.error("Critical Error:", err); 
+        setTxStatusMessage("Error initializing transaction.");
+    }
   };
 
   // --- TOUR LOGIC ---
   const startTour = () => {
+    // Cek apakah driver ter-load dengan benar untuk menghindari error
+    if (typeof driver === 'undefined') return;
+
     const tourDriver = driver({
       showProgress: true,
       animate: true,
@@ -143,24 +154,30 @@ export default function Home() {
   // Auto-detect User
   useEffect(() => {
     const load = async () => {
-      sdk.actions.ready(); 
-      const context = await sdk.context;
-      if (context?.user) {
-        setFarcasterUser(context.user);
-        setIsSDKLoaded(true);
-        fetchAddressAndStats(context.user.fid);
-        
-        const hasSeen = localStorage.getItem('tour_seen_v4'); 
-        if(!hasSeen) {
-            setTimeout(() => startTour(), 2000); 
-            localStorage.setItem('tour_seen_v4', 'true');
+      try {
+        sdk.actions.ready(); 
+        const context = await sdk.context;
+        if (context?.user) {
+          setFarcasterUser(context.user);
+          setIsSDKLoaded(true);
+          fetchAddressAndStats(context.user.fid);
+          
+          const hasSeen = localStorage.getItem('tour_seen_v4'); 
+          if(!hasSeen) {
+              // Delay sedikit lebih lama agar dompet siap dulu
+              setTimeout(() => startTour(), 2500); 
+              localStorage.setItem('tour_seen_v4', 'true');
+          }
         }
+      } catch (err) {
+        console.error("SDK Init Error:", err); // Tangkap error SDK agar tidak blank screen
       }
     };
+    // Panggil load() hanya jika SDK ada
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
 
-  // --- LOGIC FETCHING ---
+  // --- LOGIC FETCHING (Sama seperti sebelumnya) ---
   const checkVerifications = async (addresses: string[]) => {
     try {
       const formattedAddresses = addresses.map(a => a.toLowerCase());
