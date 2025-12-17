@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useAccount, useConnect } from "wagmi";
+// Hooks Experimental untuk Paymaster
 import { useCapabilities, useWriteContracts } from "wagmi/experimental"; 
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base } from "viem/chains"; 
@@ -56,39 +57,26 @@ export default function Home() {
   
   const { writeContracts, isPending: isTxPending } = useWriteContracts();
 
-  // FIX 1: Tambahkan error handling pada useCapabilities agar tidak crash di Farcaster
+  // Logic Capabilities (Paymaster)
   const { data: availableCapabilities } = useCapabilities({
     account: address,
-    query: {
-      enabled: !!address, // Hanya jalan jika address ada
-      retry: false,       // Jangan retry jika gagal (supaya tidak hang)
-    } 
+    query: { enabled: !!address, retry: false } 
   });
 
   const capabilities = useMemo(() => {
-    // FIX 2: Validasi ketat. Jika salah satu komponen tidak ada, return kosong (mode bayar sendiri)
     if (!availableCapabilities || !chainId || !PAYMASTER_URL) return undefined;
-    
     const capabilitiesForChain = availableCapabilities[chainId];
-    
-    // Cek apakah wallet mendukung Paymaster (Hanya Coinbase Smart Wallet yang biasanya tembus sini)
     if (
       capabilitiesForChain &&
       capabilitiesForChain["paymasterService"] &&
       capabilitiesForChain["paymasterService"].supported
     ) {
-      return {
-        paymasterService: {
-          url: PAYMASTER_URL, 
-        },
-      };
+      return { paymasterService: { url: PAYMASTER_URL } };
     }
-    
-    // Default: return undefined (transaksi reguler)
     return undefined;
   }, [availableCapabilities, chainId]);
 
-  // State lainnya
+  // State
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
   const [neynarScore, setNeynarScore] = useState<string>("...");
@@ -105,7 +93,6 @@ export default function Home() {
     setTxStatusMessage("Processing transaction...");
 
     try {
-        // FIX 3: Gunakan variabel capabilities yang sudah 'aman'
         writeContracts({
             contracts: [
                 {
@@ -115,13 +102,12 @@ export default function Home() {
                     args: [],
                 }
             ],
-            capabilities, // Jika undefined, wagmi akan otomatis pakai mode biasa (bayar gas)
+            capabilities, 
         }, {
             onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
             onError: (err) => {
                 console.error("Tx Error:", err);
-                // Pesan error lebih ramah
-                setTxStatusMessage("Failed. Please try again or check your balance.");
+                setTxStatusMessage("Failed. Please try again.");
             }
         });
     } catch (err: any) { 
@@ -132,9 +118,7 @@ export default function Home() {
 
   // --- TOUR LOGIC ---
   const startTour = () => {
-    // Cek apakah driver ter-load dengan benar untuk menghindari error
     if (typeof driver === 'undefined') return;
-
     const tourDriver = driver({
       showProgress: true,
       animate: true,
@@ -164,26 +148,21 @@ export default function Home() {
           
           const hasSeen = localStorage.getItem('tour_seen_v4'); 
           if(!hasSeen) {
-              // Delay sedikit lebih lama agar dompet siap dulu
               setTimeout(() => startTour(), 2500); 
               localStorage.setItem('tour_seen_v4', 'true');
           }
         }
-      } catch (err) {
-        console.error("SDK Init Error:", err); // Tangkap error SDK agar tidak blank screen
-      }
+      } catch (err) { console.error("SDK Init Error:", err); }
     };
-    // Panggil load() hanya jika SDK ada
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
 
-  // --- LOGIC FETCHING (Sama seperti sebelumnya) ---
+  // --- LOGIC FETCHING ---
   const checkVerifications = async (addresses: string[]) => {
     try {
       const formattedAddresses = addresses.map(a => a.toLowerCase());
       const response = await fetch("https://base.easscan.org/graphql", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: `query Attestations($whereIdentity: AttestationWhereInput, $whereSocial: AttestationWhereInput) { identity: attestations(where: $whereIdentity) { id } social: attestations(where: $whereSocial) { id } }`,
           variables: {
@@ -223,8 +202,7 @@ export default function Home() {
     setTxStatusMessage(`Submitting ${address.slice(0,6)}...`); 
     try {
       const response = await fetch("https://api.passport.xyz/registry/submit-passport", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-API-Key": GITCOIN_API_KEY },
+          method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": GITCOIN_API_KEY },
           body: JSON.stringify({ address: address, scorer_id: GITCOIN_SCORER_ID }),
       });
       if (!response.ok) throw new Error("Failed");
@@ -274,7 +252,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono overflow-x-hidden relative">
       
-      {/* === HEADER (Animasi Logo) === */}
+      {/* === HEADER === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-gray-800/50">
           <div className="flex items-center gap-4 relative overflow-visible">
               <motion.div 
@@ -297,7 +275,7 @@ export default function Home() {
           </button>
       </div>
 
-      {/* MAIN CARD PROFILE */}
+      {/* MAIN CARD */}
       <div id="profile-card" className="bg-gray-900/50 backdrop-blur-sm p-6 rounded-2xl border border-blue-500/30 mb-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
@@ -331,7 +309,7 @@ export default function Home() {
             </div>
         </div>
 
-        {/* --- SCORES GRID --- */}
+        {/* SCORES GRID */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
              <div id="neynar-card" className="p-4 bg-black/40 rounded-xl text-center border border-gray-800 flex flex-col justify-center items-center h-32 relative overflow-hidden group hover:border-blue-500/50 transition-colors">
                 <div className="flex items-center gap-1.5 mb-2">
@@ -371,7 +349,7 @@ export default function Home() {
              </div>
         </div>
 
-        {/* --- TOMBOL AKSI --- */}
+        {/* AKSI */}
         {isConnected ? (
           <div id="action-buttons" className="space-y-3 relative z-10">
             <div>
@@ -422,7 +400,9 @@ export default function Home() {
                         {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
                     </span>
                 </button>
+                {/* --- NOTE DIKEMBALIKAN DISINI --- */}
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-gray-400 animate-pulse">{txStatusMessage}</p>}
+                <p className="text-[10px] text-gray-500 text-center mt-2">Note: Boost activity is experimental to increase Neynar score. Contract is verified on Blockscout.</p>
             </div>
             
             <div className="flex gap-2 mt-2">
