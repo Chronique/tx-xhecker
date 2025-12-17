@@ -290,12 +290,12 @@ export default function Home() {
                     {isFullyVerified ? (
                     <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)] animate-pulse">
                         <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">VERIFIED</span>
+                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">BASED VERIFIED</span>
                     </span>
                     ) : isPartiallyVerified ? (
                     <span className="bg-green-900/30 px-2 py-0.5 rounded border border-green-500/50 flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3 text-green-400" />
-                        <span className="text-[9px] font-bold text-green-300">PARTIAL</span>
+                        <span className="text-[9px] font-bold text-green-300">VERIFIED</span>
                     </span>
                     ) : (
                     <span className="bg-red-900/30 px-2 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
@@ -400,9 +400,21 @@ export default function Home() {
                         {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
                     </span>
                 </button>
-                {/* --- NOTE DIKEMBALIKAN DISINI --- */}
+                
+                {/* --- STATUS & LINK BLOCKSCOUT (UPDATED) --- */}
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-gray-400 animate-pulse">{txStatusMessage}</p>}
-                <p className="text-[10px] text-gray-500 text-center mt-2">Note: Boost activity is experimental to increase Neynar score. Contract is verified on Blockscout.</p>
+                
+                <p className="text-[10px] text-gray-500 text-center mt-2">
+                  Note: Boost activity is experimental to increase Neynar score. Contract is verified on{' '}
+                  <a 
+                    href={`https://base.blockscout.com/address/${BOOST_CONTRACT_ADDRESS}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="underline hover:text-blue-400 transition-colors"
+                  >
+                    Blockscout
+                  </a>.
+                </p>
             </div>
             
             <div className="flex gap-2 mt-2">
