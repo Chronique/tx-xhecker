@@ -14,7 +14,7 @@ import { Attribution } from "ox/erc8021";
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
-  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle 
+  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone 
 } from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
@@ -129,7 +129,8 @@ export default function Home() {
         { element: '#neynar-card', popover: { title: 'Neynar Score', description: 'Your activity score on Farcaster.', side: "top" } },
         { element: '#talent-card', popover: { title: 'Talent Score', description: 'Your builder reputation score.', side: "top" } },
         { element: '#gitcoin-card', popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" } },
-        { element: '#action-buttons', popover: { title: 'Action Area', description: 'Verify your identity and BOOST your onchain activity here.', side: "top" } }
+        { element: '#verification-box', popover: { title: 'Base App Verification', description: 'These verifications (Social & Identity) are exclusive for Base Smart Wallet users.', side: "top" } },
+        { element: '#boost-btn', popover: { title: 'Boost Activity', description: 'Perform a real onchain transaction here to boost your wallet history.', side: "top" } }
       ]
     });
     tourDriver.drive();
@@ -146,10 +147,10 @@ export default function Home() {
           setIsSDKLoaded(true);
           fetchAddressAndStats(context.user.fid);
           
-          const hasSeen = localStorage.getItem('tour_seen_v4'); 
+          const hasSeen = localStorage.getItem('tour_seen_v5'); // Bump version
           if(!hasSeen) {
               setTimeout(() => startTour(), 2500); 
-              localStorage.setItem('tour_seen_v4', 'true');
+              localStorage.setItem('tour_seen_v5', 'true');
           }
         }
       } catch (err) { console.error("SDK Init Error:", err); }
@@ -290,12 +291,12 @@ export default function Home() {
                     {isFullyVerified ? (
                     <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)] animate-pulse">
                         <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">BASED VERIFIED</span>
+                        <span className="text-[9px] font-bold text-blue-300 tracking-wider">VERIFIED</span>
                     </span>
                     ) : isPartiallyVerified ? (
                     <span className="bg-green-900/30 px-2 py-0.5 rounded border border-green-500/50 flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3 text-green-400" />
-                        <span className="text-[9px] font-bold text-green-300">VERIFIED</span>
+                        <span className="text-[9px] font-bold text-green-300">PARTIAL</span>
                     </span>
                     ) : (
                     <span className="bg-red-900/30 px-2 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
@@ -349,49 +350,58 @@ export default function Home() {
              </div>
         </div>
 
-        {/* AKSI */}
+        {/* --- TOMBOL AKSI --- */}
         {isConnected ? (
           <div id="action-buttons" className="space-y-3 relative z-10">
-            <div>
-                {isSocialVerified ? (
-                    <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-blue-900/20 text-blue-400 border border-blue-500/50 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-default">
-                        <Twitter className="w-4 h-4"/> SOCIAL VERIFIED
-                    </a>
-                ) : (
-                    <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(14,165,233,0.6)] block text-center border border-sky-900">
-                        <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
-                        <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-sky-200 transition-colors">
-                            <Twitter className="w-4 h-4 text-sky-400 group-hover:text-white" />
-                            VERIFY SOCIAL (BASE)
-                        </div>
-                    </a>
-                )}
-            </div>
+            
+            {/* === KOTAK BARU: BASE APP ONLY === */}
+            <div id="verification-box" className="border border-blue-900/40 bg-blue-900/10 rounded-xl p-3 relative pt-5 mb-2">
+                {/* LABEL BASE APP ONLY */}
+                <div className="absolute -top-2.5 right-3 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-lg border border-blue-400 flex items-center gap-1">
+                    <Smartphone className="w-3 h-3" /> BASE APP ONLY
+                </div>
 
-            <div>
-                {isIdentityVerified ? (
-                    <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-default">
-                        <Fingerprint className="w-4 h-4"/> IDENTITY VERIFIED
-                    </a>
-                ) : (
-                    <div className="flex flex-col gap-1">
-                        <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] block text-center border border-blue-900">
-                            <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
-                            <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
-                            <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-blue-200 transition-colors">
-                                <ShieldCheck className="w-4 h-4 text-blue-400 group-hover:text-white" />
-                                VERIFY IDENTITY (EAS)
-                            </div>
-                        </a>
-                        <p className="text-[9px] text-red-400 text-center flex items-center justify-center gap-1 mt-1">
-                            <AlertTriangle className="w-3 h-3" /> Use Smart Wallet (Base App). Don't use Farcaster wallet.
-                        </p>
+                <div className="space-y-2">
+                    {/* 1. SOCIAL VERIFY */}
+                    <div>
+                        {isSocialVerified ? (
+                            <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 bg-blue-900/30 text-blue-400 border border-blue-500/50 rounded-lg font-bold text-xs flex items-center justify-center gap-2 cursor-default">
+                                <Twitter className="w-4 h-4"/> SOCIAL VERIFIED
+                            </a>
+                        ) : (
+                            <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-2.5 bg-black rounded-lg overflow-hidden transition-all duration-300 active:scale-95 border border-blue-900/50">
+                                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-40 group-hover:opacity-80 transition-opacity"></div>
+                                <div className="absolute inset-[1px] bg-gray-900 rounded-lg z-10 flex items-center justify-center"></div>
+                                <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-blue-200 transition-colors">
+                                    <Twitter className="w-4 h-4 text-blue-400 group-hover:text-white" />
+                                    VERIFY SOCIAL
+                                </div>
+                            </a>
+                        )}
                     </div>
-                )}
+
+                    {/* 2. IDENTITY VERIFY */}
+                    <div>
+                        {isIdentityVerified ? (
+                            <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 bg-green-900/30 text-green-400 border border-green-500/50 rounded-lg font-bold text-xs flex items-center justify-center gap-2 cursor-default">
+                                <Fingerprint className="w-4 h-4"/> IDENTITY VERIFIED
+                            </a>
+                        ) : (
+                            <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-2.5 bg-black rounded-lg overflow-hidden transition-all duration-300 active:scale-95 border border-green-900/50">
+                                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#22c55e_50%,#000000_100%)] opacity-40 group-hover:opacity-80 transition-opacity"></div>
+                                <div className="absolute inset-[1px] bg-gray-900 rounded-lg z-10 flex items-center justify-center"></div>
+                                <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-green-200 transition-colors">
+                                    <ShieldCheck className="w-4 h-4 text-green-400 group-hover:text-white" />
+                                    VERIFY IDENTITY
+                                </div>
+                            </a>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            <div id="boost-btn">
+            {/* 3. TOMBOL BOOST (TERPISAH) */}
+            <div id="boost-btn" className="mt-4">
                 <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
                     <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                     <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
@@ -401,19 +411,11 @@ export default function Home() {
                     </span>
                 </button>
                 
-                {/* --- STATUS & LINK BLOCKSCOUT (UPDATED) --- */}
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-gray-400 animate-pulse">{txStatusMessage}</p>}
                 
                 <p className="text-[10px] text-gray-500 text-center mt-2">
                   Note: Boost activity is experimental to increase Neynar score. Contract is verified on{' '}
-                  <a 
-                    href={`https://base.blockscout.com/address/${BOOST_CONTRACT_ADDRESS}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="underline hover:text-blue-400 transition-colors"
-                  >
-                    Blockscout
-                  </a>.
+                  <a href={`https://base.blockscout.com/address/${BOOST_CONTRACT_ADDRESS}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400 transition-colors">Blockscout</a>.
                 </p>
             </div>
             
