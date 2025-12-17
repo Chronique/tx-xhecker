@@ -1,27 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAccount, useConnect, useSendTransaction } from "wagmi";
+import { useEffect, useState, useMemo } from "react";
+import { useAccount, useConnect } from "wagmi";
+// 1. UPDATE: Gunakan hooks experimental untuk Paymaster support
+import { useCapabilities, useWriteContracts } from "wagmi/experimental"; 
 import { createPublicClient, http, encodeFunctionData, concat } from "viem";
 import { base } from "viem/chains"; 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { METADATA } from "~/lib/utils"; 
 import { Attribution } from "ox/erc8021";
 
-// --- IMPORT ICON (DIPERBAIKI: Menggabungkan Lucide & React Icons) ---
-import { MdContentPasteSearch } from "react-icons/md"; // Logo Baru
+// --- IMPORT ICON ---
+import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
-  Star, 
-  Share2, 
-  Zap, 
-  CheckCircle2, 
-  ShieldCheck, // Ikon ini wajib ada untuk status Verified
-  AlertTriangle, 
-  Code2, 
-  Twitter, 
-  Fingerprint, 
-  RefreshCcw, 
-  HelpCircle 
+  Star, Share2, Zap, CheckCircle2, ShieldCheck, 
+  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle 
 } from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
@@ -34,6 +27,9 @@ const MY_BUILDER_CODE = "bc_2ivoo1oy";
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
+
+// 2. TAMBAHAN: URL Paymaster (Wajib diisi di .env.local)
+const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL || ""; 
 
 const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF"; 
 const VERIFY_SOCIAL_URL = "https://verify.base.dev/verifications"; 
@@ -57,26 +53,74 @@ const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95
 const SCHEMA_TWITTER = "0x6291a26f3020617306263907727103a088924375375772392462332997632626";
 
 export default function Home() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount(); 
   const { connectors, connect } = useConnect();
-  const { sendTransaction, isPending: isTxPending } = useSendTransaction();
+  
+  // 3. UPDATE: Ganti useSendTransaction dengan useWriteContracts
+  const { writeContracts, isPending: isTxPending } = useWriteContracts();
 
-  // State
+  // 4. UPDATE: Cek Capabilities Wallet (Paymaster Support)
+  const { data: availableCapabilities } = useCapabilities({
+    account: address,
+  });
+
+  // 5. UPDATE: Konstruksi Object Capabilities
+  const capabilities = useMemo(() => {
+    if (!availableCapabilities || !chainId || !PAYMASTER_URL) return {};
+    const capabilitiesForChain = availableCapabilities[chainId];
+    
+    // Cek apakah wallet mendukung paymasterService (ERC-7677)
+    if (
+      capabilitiesForChain["paymasterService"] &&
+      capabilitiesForChain["paymasterService"].supported
+    ) {
+      return {
+        paymasterService: {
+          url: PAYMASTER_URL, // URL Paymaster dari .env
+        },
+      };
+    }
+    return {};
+  }, [availableCapabilities, chainId]);
+
+  // State lainnya
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
-  
-  // Scores
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
   const [talentScore, setTalentScore] = useState<string | null>(null);
-  
-  // Verification States
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
-  
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
+
+  // --- LOGIC BOOST ACTIVITY (UPDATED FOR PAYMASTER) ---
+  const handleBoostActivity = () => { 
+    if (!address) return;
+    setTxStatusMessage("Checking wallet capabilities...");
+
+    try {
+        // Kita gunakan writeContracts agar mendukung Paymaster
+        writeContracts({
+            contracts: [
+                {
+                    address: BOOST_CONTRACT_ADDRESS,
+                    abi: BOOST_ABI,
+                    functionName: 'boost',
+                    args: [],
+                }
+            ],
+            capabilities, // Masukkan capabilities paymaster di sini
+        }, {
+            onSuccess: () => setTxStatusMessage("Success! Activity boosted (Gasless if supported)."),
+            onError: (err) => {
+                console.error(err);
+                setTxStatusMessage("Cancelled or failed.");
+            }
+        });
+    } catch (err: any) { console.error("Error:", err); }
+  };
 
   // --- TOUR LOGIC ---
   const startTour = () => {
@@ -85,30 +129,12 @@ export default function Home() {
       animate: true,
       popoverClass: 'driver-popover', 
       steps: [
-        {
-          element: '#header-anim',
-          popover: { title: 'Welcome!', description: 'Check your onchain reputation & boost your score.', side: "bottom" }
-        },
-        {
-          element: '#verification-status', 
-          popover: { title: 'Your Status', description: 'This badge shows if you are Verified Human on Base.', side: "bottom" }
-        },
-        {
-          element: '#neynar-card',
-          popover: { title: 'Neynar Score', description: 'Your activity score on Farcaster.', side: "top" }
-        },
-        {
-          element: '#talent-card', 
-          popover: { title: 'Talent Score', description: 'Your builder reputation score.', side: "top" }
-        },
-        {
-          element: '#gitcoin-card',
-          popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" }
-        },
-        {
-          element: '#action-buttons', 
-          popover: { title: 'Action Area', description: 'Verify your identity and BOOST your onchain activity here.', side: "top" }
-        }
+        { element: '#header-anim', popover: { title: 'Welcome!', description: 'Check your onchain reputation & boost your score.', side: "bottom" } },
+        { element: '#verification-status', popover: { title: 'Your Status', description: 'This badge shows if you are Verified Human on Base.', side: "bottom" } },
+        { element: '#neynar-card', popover: { title: 'Neynar Score', description: 'Your activity score on Farcaster.', side: "top" } },
+        { element: '#talent-card', popover: { title: 'Talent Score', description: 'Your builder reputation score.', side: "top" } },
+        { element: '#gitcoin-card', popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" } },
+        { element: '#action-buttons', popover: { title: 'Action Area', description: 'Verify your identity and BOOST your onchain activity here.', side: "top" } }
       ]
     });
     tourDriver.drive();
@@ -218,19 +244,6 @@ export default function Home() {
       }
     } catch (error) { console.error("Load error:", error); }
   };
-
-  const handleBoostActivity = () => { 
-    if (!address) return;
-    setTxStatusMessage("Checking wallet...");
-    try {
-        const calldata = encodeFunctionData({ abi: BOOST_ABI, functionName: 'boost' });
-        const finalData = concat([calldata, Attribution.toDataSuffix({ codes: [MY_BUILDER_CODE] })]);
-        sendTransaction({ to: BOOST_CONTRACT_ADDRESS as `0x${string}`, data: finalData }, {
-          onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
-          onError: () => setTxStatusMessage("Cancelled or failed.")
-        });
-    } catch (err: any) { console.error("Error:", err); }
-  };
   
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) { } };
   const handleShareCast = () => {
@@ -247,16 +260,12 @@ export default function Home() {
       {/* === HEADER (Animasi Logo) === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-gray-800/50">
           <div className="flex items-center gap-4 relative overflow-visible">
-              
-              {/* Logo Material Design Baru */}
               <motion.div 
                   initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}
                   className="relative z-20 flex-none w-12 h-12 bg-[#0052FF] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,82,255,0.5)] border border-white/20"
               >
                   <MdContentPasteSearch className="text-white w-7 h-7" />
               </motion.div>
-
-              {/* Teks */}
               <motion.div
                   initial={{ x: -60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4, type: "spring", stiffness: 100 }}
                   className="relative z-10 flex flex-col justify-center pl-2"
@@ -266,7 +275,6 @@ export default function Home() {
                   <p className="text-[8px] text-gray-500 mt-1 font-bold tracking-widest uppercase">Check your reputation score</p>
               </motion.div>
           </div>
-          {/* Tombol Tour */}
           <button onClick={startTour} className="p-2 text-gray-500 hover:text-white transition bg-gray-900/50 rounded-full border border-gray-800 hover:bg-gray-800" title="Start Tutorial">
               <HelpCircle className="w-5 h-5" />
           </button>
@@ -283,8 +291,6 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold">@{farcasterUser?.username || "User"}</p>
-                
-                {/* ID KHUSUS UNTUK TOUR VERIFIED */}
                 <div id="verification-status">
                     {isFullyVerified ? (
                     <span className="bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/50 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)] animate-pulse">
@@ -303,7 +309,6 @@ export default function Home() {
                     </span>
                     )}
                 </div>
-
               </div>
               <p className="text-xs text-gray-500 font-mono mt-0.5">FID: {farcasterUser?.fid || "..."}</p>
             </div>
@@ -311,8 +316,6 @@ export default function Home() {
 
         {/* --- SCORES GRID --- */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
-             
-             {/* 1. Neynar Score */}
              <div id="neynar-card" className="p-4 bg-black/40 rounded-xl text-center border border-gray-800 flex flex-col justify-center items-center h-32 relative overflow-hidden group hover:border-blue-500/50 transition-colors">
                 <div className="flex items-center gap-1.5 mb-2">
                     <div className="p-1 bg-blue-500/20 rounded-md"><Zap className="w-3 h-3 text-blue-400" /></div>
@@ -321,10 +324,7 @@ export default function Home() {
                 <p className="text-3xl font-black text-white">{neynarScore}</p>
              </div>
 
-             {/* Kanan: Stacked Scores */}
              <div className="flex flex-col gap-2">
-                
-                {/* 2. Talent Protocol (ID KHUSUS) */}
                 <div id="talent-card" className="flex-1 p-2.5 bg-black/40 rounded-xl border border-gray-800 flex flex-col justify-center relative overflow-hidden">
                     <div className="flex justify-between items-center mb-1">
                         <div className="flex items-center gap-1.5">
@@ -336,7 +336,6 @@ export default function Home() {
                     <p className="text-lg font-bold text-purple-300">{talentScore || "0"}</p>
                 </div>
 
-                {/* 3. Gitcoin Card */}
                 <div id="gitcoin-card" className="flex-1 p-2.5 bg-black/40 rounded-xl border border-gray-800 flex flex-col justify-center relative overflow-hidden">
                     <div className="flex justify-between items-center mb-1">
                         <div className="flex items-center gap-1.5">
@@ -352,15 +351,12 @@ export default function Home() {
                         </button>
                     </div>
                 </div>
-
              </div>
         </div>
 
-        {/* --- TOMBOL AKSI (LIQUID EFFECT RESTORED) --- */}
+        {/* --- TOMBOL AKSI --- */}
         {isConnected ? (
           <div id="action-buttons" className="space-y-3 relative z-10">
-            
-            {/* 1. VERIFY SOCIAL (LIQUID EFFECT) */}
             <div>
                 {isSocialVerified ? (
                     <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-blue-900/20 text-blue-400 border border-blue-500/50 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-default">
@@ -368,7 +364,6 @@ export default function Home() {
                     </a>
                 ) : (
                     <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(14,165,233,0.6)] block text-center border border-sky-900">
-                        {/* Efek Liquid / Blob (Cyan/Sky) */}
                         <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                         <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                         <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-sky-200 transition-colors">
@@ -379,7 +374,6 @@ export default function Home() {
                 )}
             </div>
 
-            {/* 2. VERIFY IDENTITY (LIQUID EFFECT) */}
             <div>
                 {isIdentityVerified ? (
                     <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-green-900/20 text-green-400 border border-green-500/50 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-default">
@@ -388,7 +382,6 @@ export default function Home() {
                 ) : (
                     <div className="flex flex-col gap-1">
                         <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-3 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] block text-center border border-blue-900">
-                            {/* Efek Liquid / Blob (Blue) */}
                             <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#3b82f6_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                             <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                             <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-blue-200 transition-colors">
@@ -403,10 +396,8 @@ export default function Home() {
                 )}
             </div>
 
-            {/* 3. TOMBOL BOOST (LIQUID EFFECT) */}
             <div id="boost-btn">
                 <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
-                    {/* Efek Liquid / Blob (Purple) */}
                     <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
                     <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
                     <span className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-purple-200">
@@ -417,7 +408,6 @@ export default function Home() {
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-gray-400 animate-pulse">{txStatusMessage}</p>}
             </div>
             
-            {/* Footer Buttons */}
             <div className="flex gap-2 mt-2">
                 <button onClick={handleAddMiniApp} disabled={isAdded} className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-[10px] font-bold text-gray-300 flex items-center justify-center gap-1 transition">
                     <Star className="w-3 h-3 text-yellow-500" fill="currentColor"/> {isAdded ? "Added" : "Add App"}
