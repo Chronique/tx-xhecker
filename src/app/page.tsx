@@ -23,11 +23,12 @@ import { motion } from "framer-motion";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
-// --- KONFIGURASI ---
+// --- KONFIGURASI API & KONTRAK ---
 const MY_BUILDER_CODE = "bc_2ivoo1oy"; 
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
+const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 
 const PAYMASTER_URL = process.env.NEXT_PUBLIC_PAYMASTER_URL || ""; 
 
@@ -48,7 +49,7 @@ const BOOST_ABI = [
   { "inputs": [], "name": "boost", "outputs": [], "stateMutability": "nonpayable", "type": "function" }
 ] as const;
 
-// --- SCHEMAS ---
+// --- SCHEMAS EAS ---
 const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
 const SCHEMA_TWITTER = "0x6291a26f3020617306263907727103a088924375375772392462332997632626";
 
@@ -58,7 +59,7 @@ export default function Home() {
   
   const { writeContracts, isPending: isTxPending } = useWriteContracts();
 
-  // Logic Capabilities (Paymaster)
+  // Logic Capabilities (Paymaster untuk Gasless Tx)
   const { data: availableCapabilities } = useCapabilities({
     account: address,
     query: { enabled: !!address, retry: false } 
@@ -77,7 +78,7 @@ export default function Home() {
     return undefined;
   }, [availableCapabilities, chainId]);
 
-  // State
+  // State Management
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
   const [neynarScore, setNeynarScore] = useState<string>("...");
@@ -88,34 +89,6 @@ export default function Home() {
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
-
-  const handleBoostActivity = () => { 
-    if (!address) return;
-    setTxStatusMessage("Processing transaction...");
-
-    try {
-        writeContracts({
-            contracts: [
-                {
-                    address: BOOST_CONTRACT_ADDRESS,
-                    abi: BOOST_ABI,
-                    functionName: 'boost',
-                    args: [],
-                }
-            ],
-            capabilities, 
-        }, {
-            onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
-            onError: (err) => {
-                console.error("Tx Error:", err);
-                setTxStatusMessage("Failed. Please try again.");
-            }
-        });
-    } catch (err: any) { 
-        console.error("Critical Error:", err); 
-        setTxStatusMessage("Error initializing transaction.");
-    }
-  };
 
   // --- TOUR LOGIC ---
   const startTour = () => {
@@ -132,13 +105,13 @@ export default function Home() {
         { element: '#gitcoin-card', popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" } },
         { element: '#verification-box', popover: { title: 'Base App Verification', description: 'These verifications (Social & Identity) are exclusive for Base Smart Wallet users.', side: "top" } },
         { element: '#boost-btn', popover: { title: 'Boost Activity', description: 'Perform a real onchain transaction here to boost your wallet history.', side: "top" } },
-        { element: '#tip-box-container', popover: { title: 'Buy Me A Coffee', description: 'Support the project with a small tip here.', side: "top" } }
+        { element: '#tip-box-container', popover: { title: 'Buy Me A Coffee', description: 'Support the developer with a small tip!', side: "top" } }
       ]
     });
     tourDriver.drive();
   };
 
-  // Auto-detect User
+  // Auto-detect User context dari Farcaster SDK
   useEffect(() => {
     const load = async () => {
       try {
@@ -149,7 +122,7 @@ export default function Home() {
           setIsSDKLoaded(true);
           fetchAddressAndStats(context.user.fid);
           
-          const hasSeen = localStorage.getItem('tour_seen_v5'); // Bump version
+          const hasSeen = localStorage.getItem('tour_seen_v5');
           if(!hasSeen) {
               setTimeout(() => startTour(), 2500); 
               localStorage.setItem('tour_seen_v5', 'true');
@@ -160,7 +133,7 @@ export default function Home() {
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
 
-  // --- LOGIC FETCHING ---
+  // --- LOGIC FETCHING DATA (Neynar, EAS, Gitcoin, Talent) ---
   const checkVerifications = async (addresses: string[]) => {
     try {
       const formattedAddresses = addresses.map(a => a.toLowerCase());
@@ -228,9 +201,8 @@ export default function Home() {
 
   const fetchAddressAndStats = async (fid: number) => {
     try {
-      const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-      if (!apiKey) return;
-      const res = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, { headers: { accept: "application/json", api_key: apiKey } });
+      if (!NEYNAR_API_KEY) return;
+      const res = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, { headers: { accept: "application/json", api_key: NEYNAR_API_KEY } });
       const data = await res.json();
       if (data.users && data.users[0]) {
         const user = data.users[0];
@@ -242,7 +214,21 @@ export default function Home() {
       }
     } catch (error) { console.error("Load error:", error); }
   };
-  
+
+  const handleBoostActivity = () => { 
+    if (!address) return;
+    setTxStatusMessage("Processing transaction...");
+    try {
+        writeContracts({
+            contracts: [{ address: BOOST_CONTRACT_ADDRESS, abi: BOOST_ABI, functionName: 'boost', args: [] }],
+            capabilities, 
+        }, {
+            onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
+            onError: () => setTxStatusMessage("Failed. Please try again.")
+        });
+    } catch (err) { setTxStatusMessage("Error initializing transaction."); }
+  };
+
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) { } };
   const handleShareCast = () => {
       const shareText = `Check my reputation on Base! 🛡️\n\nNeynar Score: ${neynarScore}\nTalent Score: ${talentScore || "N/A"}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
@@ -278,7 +264,7 @@ export default function Home() {
           </button>
       </div>
 
-      {/* MAIN CARD */}
+      {/* === DASHBOARD UTAMA === */}
       <div id="profile-card" className="bg-gray-900/50 backdrop-blur-sm p-6 rounded-2xl border border-blue-500/30 mb-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
@@ -312,7 +298,7 @@ export default function Home() {
             </div>
         </div>
 
-        {/* SCORES GRID */}
+        {/* STATS GRID */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
              <div id="neynar-card" className="p-4 bg-black/40 rounded-xl text-center border border-gray-800 flex flex-col justify-center items-center h-32 relative overflow-hidden group hover:border-blue-500/50 transition-colors">
                 <div className="flex items-center gap-1.5 mb-2">
@@ -352,49 +338,42 @@ export default function Home() {
              </div>
         </div>
 
-        {/* --- TOMBOL AKSI --- */}
+        {/* AKSI TOMBOL */}
         {isConnected ? (
           <div id="action-buttons" className="space-y-3 relative z-10">
-            
-            {/* === KOTAK BARU: BASE APP ONLY === */}
             <div id="verification-box" className="border border-blue-900/40 bg-blue-900/10 rounded-xl p-3 relative pt-5 mb-2">
-                {/* LABEL BASE APP ONLY */}
                 <div className="absolute -top-2.5 right-3 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-lg border border-blue-400 flex items-center gap-1">
                     <Smartphone className="w-3 h-3" /> BASE APP ONLY
                 </div>
 
                 <div className="space-y-2">
-                    {/* 1. SOCIAL VERIFY */}
                     <div>
                         {isSocialVerified ? (
                             <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 bg-blue-900/30 text-blue-400 border border-blue-500/50 rounded-lg font-bold text-xs flex items-center justify-center gap-2 cursor-default">
                                 <Twitter className="w-4 h-4"/> SOCIAL VERIFIED
                             </a>
                         ) : (
-                            <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-2.5 bg-black rounded-lg overflow-hidden transition-all duration-300 active:scale-95 border border-blue-900/50">
-                                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-40 group-hover:opacity-80 transition-opacity"></div>
-                                <div className="absolute inset-[1px] bg-gray-900 rounded-lg z-10 flex items-center justify-center"></div>
-                                <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-blue-200 transition-colors">
-                                    <Twitter className="w-4 h-4 text-blue-400 group-hover:text-white" />
-                                    VERIFY SOCIAL
+                            <a href={VERIFY_SOCIAL_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-2.5 bg-black rounded-lg overflow-hidden transition-all duration-300 active:scale-95 border border-blue-900/50 flex items-center justify-center">
+                                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#0ea5e9_50%,#000000_100%)] opacity-40"></div>
+                                <div className="absolute inset-[1px] bg-gray-900 rounded-lg z-10"></div>
+                                <div className="relative z-20 flex items-center gap-2 text-white font-bold text-xs tracking-wider">
+                                    <Twitter className="w-4 h-4 text-blue-400" /> VERIFY SOCIAL
                                 </div>
                             </a>
                         )}
                     </div>
 
-                    {/* 2. IDENTITY VERIFY */}
                     <div>
                         {isIdentityVerified ? (
                             <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 bg-green-900/30 text-green-400 border border-green-500/50 rounded-lg font-bold text-xs flex items-center justify-center gap-2 cursor-default">
                                 <Fingerprint className="w-4 h-4"/> IDENTITY VERIFIED
                             </a>
                         ) : (
-                            <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-2.5 bg-black rounded-lg overflow-hidden transition-all duration-300 active:scale-95 border border-green-900/50">
-                                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#22c55e_50%,#000000_100%)] opacity-40 group-hover:opacity-80 transition-opacity"></div>
-                                <div className="absolute inset-[1px] bg-gray-900 rounded-lg z-10 flex items-center justify-center"></div>
-                                <div className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-green-200 transition-colors">
-                                    <ShieldCheck className="w-4 h-4 text-green-400 group-hover:text-white" />
-                                    VERIFY IDENTITY
+                            <a href={VERIFY_IDENTITY_URL} target="_blank" rel="noopener noreferrer" className="group relative w-full py-2.5 bg-black rounded-lg overflow-hidden transition-all duration-300 active:scale-95 border border-green-900/50 flex items-center justify-center">
+                                <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#22c55e_50%,#000000_100%)] opacity-40"></div>
+                                <div className="absolute inset-[1px] bg-gray-900 rounded-lg z-10"></div>
+                                <div className="relative z-20 flex items-center gap-2 text-white font-bold text-xs tracking-wider">
+                                    <ShieldCheck className="w-4 h-4 text-green-400" /> VERIFY IDENTITY
                                 </div>
                             </a>
                         )}
@@ -402,23 +381,16 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* 3. TOMBOL BOOST (TERPISAH) */}
             <div id="boost-btn" className="mt-4">
-                <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50 cursor-not-allowed" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
-                    <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10 flex items-center justify-center"></div>
+                <button onClick={handleBoostActivity} disabled={isTxPending} className={`group relative w-full py-4 bg-black rounded-xl overflow-hidden transition-all duration-300 active:scale-95 border border-purple-900 ${isTxPending ? "opacity-50" : "hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"}`}>
+                    <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#000000_0%,#a855f7_50%,#000000_100%)] opacity-60"></div>
+                    <div className="absolute inset-[2px] bg-gray-900 rounded-xl z-10"></div>
                     <span className="relative z-20 flex items-center justify-center gap-2 text-white font-bold text-xs tracking-wider group-hover:text-purple-200">
                         <Zap className={`w-4 h-4 ${isTxPending ? "animate-pulse" : "text-yellow-400"}`} fill={isTxPending ? "none" : "currentColor"} />
                         {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
                     </span>
                 </button>
-                
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-gray-400 animate-pulse">{txStatusMessage}</p>}
-                
-                <p className="text-[10px] text-gray-500 text-center mt-2">
-                  Note: Boost activity is experimental to increase Neynar score. Contract is verified on{' '}
-                  <a href={`https://base.blockscout.com/address/${BOOST_CONTRACT_ADDRESS}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400 transition-colors">Blockscout</a>.
-                </p>
             </div>
             
             <div className="flex gap-2 mt-2">
@@ -429,7 +401,6 @@ export default function Home() {
                     <Share2 className="w-3 h-3"/> Share Result
                 </button>
             </div>
-
           </div>
         ) : (
           <div className="mt-4">
@@ -442,7 +413,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* === 2. TIP BOX (AT THE BOTTOM) === */}
+      {/* === TIP BOX / BUY ME A COFFEE (DI PALING BAWAH) === */}
       <div id="tip-box-container" className="mt-auto">
         <TipBox />
         <p className="text-[8px] text-center text-gray-600 uppercase tracking-widest mt-2 mb-4">
