@@ -3,21 +3,19 @@
 import { useState } from "react";
 import { Button } from "~/components/ui/Button";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { sdk } from "@farcaster/miniapp-sdk";
 
 const RECIPIENT_ADDRESS = "0x4fba95e4772be6d37a0c931D00570Fe2c9675524";
 const PRESET_AMOUNTS = ["1", "3", "5", "10"];
 
 export function TipBox() {
-  const [amount, setAmount] = useState<string>("5");
+  const [amount, setAmount] = useState<string>("3");
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<{ type: 'error' | 'success', msg: string } | null>(null);
 
   const handleSendTip = async () => {
     setIsProcessing(true);
     setStatus(null);
-
     try {
       const result = await sdk.actions.sendToken({
         token: "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
@@ -26,32 +24,33 @@ export function TipBox() {
       });
 
       if (result.success) {
-        setStatus({ type: 'success', msg: `Successfully sent $${amount} tip!` });
+        setStatus({ type: 'success', msg: `Sent $${amount}!` });
       } else {
-        setStatus({ type: 'error', msg: result.error?.message || "Failed to send tip" });
+        setStatus({ type: 'error', msg: "Failed" });
       }
     } catch (error) {
-      setStatus({ type: 'error', msg: "An error occurred while sending" });
+      setStatus({ type: 'error', msg: "Error" });
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto mb-6 p-5 bg-gray-900/80 border border-blue-500/30 rounded-2xl shadow-xl backdrop-blur-sm">
-      <h3 className="text-lg font-bold mb-4 text-center text-white italic tracking-tighter">SUPPORT DEVELOPER ☕</h3>
+    <div className="w-full max-w-sm mx-auto mt-8 mb-4 p-3 bg-gray-900/40 border border-gray-800 rounded-xl backdrop-blur-sm">
+      <h3 className="text-[10px] font-black mb-3 text-center text-gray-400 italic tracking-widest uppercase">
+        ☕ Buy me a coffee
+      </h3>
       
-      {/* Tombol Preset menggunakan tag button standar agar tidak error variant */}
-      <div className="grid grid-cols-4 gap-2 mb-4">
+      <div className="flex gap-2 mb-3">
         {PRESET_AMOUNTS.map((preset) => (
           <button
             key={preset}
             type="button"
             onClick={() => setAmount(preset)}
-            className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all ${
+            className={`flex-1 py-1 text-[10px] font-bold rounded border transition-all ${
               amount === preset 
-                ? "bg-blue-600 text-white border-blue-400 shadow-[0_0_10px_rgba(37,99,235,0.5)]" 
-                : "bg-black/40 text-gray-400 border-gray-800 hover:border-blue-500/50"
+                ? "bg-blue-600 text-white border-blue-400" 
+                : "bg-black/20 text-gray-500 border-gray-800"
             }`}
           >
             ${preset}
@@ -59,41 +58,31 @@ export function TipBox() {
         ))}
       </div>
 
-      <div className="mb-4">
-        <Label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1" htmlFor="custom-tip">
-          Or custom amount (USD)
-        </Label>
-        <div className="relative mt-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 font-bold">$</span>
-          <Input
-            id="custom-tip"
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="pl-7 bg-black/40 border-gray-800 text-white focus:border-blue-500 transition-colors"
-            placeholder="0.00"
-          />
-        </div>
+      <div className="relative mb-3">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-blue-500 font-bold">$</span>
+        <Input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="h-8 pl-6 text-[10px] bg-black/40 border-gray-800 text-white"
+          placeholder="Custom..."
+        />
       </div>
 
       {status && (
-        <div className={`p-2 rounded text-[10px] font-bold mb-4 text-center ${status.type === 'success' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+        <p className={`text-[9px] font-bold mb-2 text-center ${status.type === 'success' ? 'text-blue-400' : 'text-red-400'}`}>
           {status.msg.toUpperCase()}
-        </div>
+        </p>
       )}
 
       <Button 
         onClick={handleSendTip} 
         disabled={isProcessing || !amount || parseFloat(amount) <= 0}
         isLoading={isProcessing}
-        className="bg-blue-600 hover:bg-blue-500 text-white font-black italic tracking-wider py-4 shadow-lg active:scale-95 transition-transform"
+        className="py-2 text-[10px] font-black italic tracking-wider shadow-md"
       >
-        SEND ${amount} TIP
+        TIP ${amount}
       </Button>
-      
-      <p className="text-[9px] text-center text-gray-600 mt-3 font-bold uppercase tracking-tighter">
-        Transacted in USDC via Base Network
-      </p>
     </div>
   );
 }
