@@ -55,28 +55,31 @@
 
     ```bash
 
-npm install
+    npm install
+
     ```
 
 3.  **Environment Setup: Create a .env.local file in the root directory:**
 
     ```bash
-NEXT_PUBLIC_WC_PROJECT_ID=your_project_id_here
-NEXT_PUBLIC_NEYNAR_API_KEY=your_project_id_here
-NEXT_PUBLIC_PAYMASTER_URL=your_project_id_here
-NEXT_PUBLIC_GITCOIN_API_KEY=your_project_id_here
-NEXT_PUBLIC_TALENT_API_KEY=your_project_id_here
-NEXT_PUBLIC_GITCOIN_SCORER_ID=your_project_id_here
+    NEXT_PUBLIC_WC_PROJECT_ID=your_project_id_here
+    NEXT_PUBLIC_NEYNAR_API_KEY=your_project_id_here
+    NEXT_PUBLIC_PAYMASTER_URL=your_project_id_here
+    NEXT_PUBLIC_GITCOIN_API_KEY=your_project_id_here
+    NEXT_PUBLIC_TALENT_API_KEY=your_project_id_here
+    NEXT_PUBLIC_GITCOIN_SCORER_ID=your_project_id_here
     ```
 
 
 
 4.  **Run Development Server:**
     ```bash
-npm run dev
+
+    npm run dev
+
     ```
 
-Open http://localhost:3000  to see the result.
+    Open http://localhost:3000  to see the result.
 
     ---
 
@@ -84,16 +87,17 @@ Open http://localhost:3000  to see the result.
 
     ```bash
 
-src/
-├── app/            # Next.js App Router, Layouts, and Frame Metadata
-├── components/     # Reusable UI & Logical Components
-│   ├── actions/    # SDK Actions (Swap, Send, Haptics, Camera)
-│   ├── providers/  # Context Providers (Wagmi, Frame SDK, Eruda)
-│   └── wallet/     # Wallet-specific UI (BasePay, TipBox, WalletActions)
-├── lib/            # Shared utilities and formatters
-└── public/         # Static assets and branding
+    src/
+    ├── app/            # Next.js App Router, Layouts, and Frame Metadata
+    ├── components/     # Reusable UI & Logical Components
+    │   ├── actions/    # SDK Actions (Swap, Send, Haptics, Camera)
+    │   ├── providers/  # Context Providers (Wagmi, Frame SDK, Eruda)
+    │   └── wallet/     # Wallet-specific UI (BasePay, TipBox, WalletActions)
+    ├── lib/            # Shared utilities and formatters
+    └── public/         # Static assets and branding
     
     ```
+    
 🤝 **Contributing**
 
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
