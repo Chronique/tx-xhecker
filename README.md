@@ -2,9 +2,7 @@
 
 **TX Xhecker** is a comprehensive Verification and Transaction Utility hub for the **Base** ecosystem, built as a Farcaster Mini App (v2). It enables users to verify their on-chain identity, check social scores, and execute optimized transactions through a unified interface.
 
-![Base Ecosystem](https://img.shields.io/badge/Network-Base-blue)
-![Farcaster](https://img.shields.io/badge/Platform-Farcaster-blueviolet)
-![Next.js](https://img.shields.io/badge/Framework-Next.js%2015-black)
+
 ![License](https://img.shields.io/badge/License-MIT-green)
 [![Follow on X](https://img.shields.io/twitter/follow/adhichronique?style=social)](https://x.com/adhichronique)
 
@@ -83,9 +81,12 @@
 
     ---
 
+
+
 📂 **Project Structure**
 
-    ```bash
+
+    ```text
 
     src/
     ├── app/            # Next.js App Router, Layouts, and Frame Metadata
@@ -97,7 +98,7 @@
     └── public/         # Static assets and branding
     
     ```
-    
+
 🤝 **Contributing**
 
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
