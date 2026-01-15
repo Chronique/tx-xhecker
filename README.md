@@ -86,7 +86,7 @@
 📂 **Project Structure**
 
 
-    ```text
+    
 
     src/
     ├── app/            # Next.js App Router, Layouts, and Frame Metadata
@@ -97,7 +97,7 @@
     ├── lib/            # Shared utilities and formatters
     └── public/         # Static assets and branding
     
-    ```
+   
 
 🤝 **Contributing**
 
