@@ -14,7 +14,6 @@ export const metadata: Metadata = {
     url: METADATA.homeUrl,
     siteName: METADATA.name
   },
-  // --- Farcaster Mini App (v2) Configuration ---
   other: {
     "fc:frame": JSON.stringify({
       version: "next",
@@ -39,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // suppressHydrationWarning wajib ada untuk next-themes agar tidak error di console
+    // suppressHydrationWarning wajib untuk fitur ganti tema
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
