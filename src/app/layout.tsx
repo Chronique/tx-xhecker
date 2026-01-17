@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import "~/app/globals.css";
 import { Providers } from "~/app/providers";
 import { METADATA } from "~/lib/utils";
+import "~/app/globals.css";
+import { ThemeProvider } from "~/components/providers/ThemeProvider";
+
+
 
 export const metadata: Metadata = {
   title: METADATA.name,
