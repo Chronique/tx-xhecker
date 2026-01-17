@@ -222,8 +222,8 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground p-6 font-mono overflow-x-hidden relative flex flex-col transition-colors duration-300">
       
       {/* === HEADER === */}
-      <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-border">
-          <div className="flex items-center gap-4 relative overflow-visible">
+      <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-border relative z-20">
+            <div className="flex items-center gap-4">
               <motion.div 
                   initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}
                   className="relative z-20 flex-none w-12 h-12 bg-[#0052FF] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,82,255,0.5)] border border-white/20"
@@ -237,8 +237,10 @@ export default function Home() {
               </div>
           </div>
           <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <button onClick={startTour} className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border">
+              <button 
+          onClick={startTour} 
+          className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border">
+
                   <HelpCircle className="w-5 h-5" />
               </button>
           </div>

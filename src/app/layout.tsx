@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import "~/app/globals.css";
 import { Providers } from "~/app/providers";
-import { METADATA } from "~/lib/utils";
-import "~/app/globals.css";
 import { ThemeProvider } from "~/components/providers/ThemeProvider";
-
-
+import { METADATA } from "~/lib/utils";
 
 export const metadata: Metadata = {
   title: METADATA.name,
@@ -17,7 +14,7 @@ export const metadata: Metadata = {
     url: METADATA.homeUrl,
     siteName: METADATA.name
   },
-  // --- INI BAGIAN PENTING YANG HILANG ---
+  // --- Farcaster Mini App (v2) Configuration ---
   other: {
     "fc:frame": JSON.stringify({
       version: "next",
@@ -34,7 +31,6 @@ export const metadata: Metadata = {
       },
     }),
   },
-  // --------------------------------------
 };
 
 export default function RootLayout({
@@ -43,9 +39,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning wajib ada untuk next-themes agar tidak error di console
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <Providers>{children}</Providers>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Providers>
+            {children}
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );
