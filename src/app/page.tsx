@@ -7,13 +7,13 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { METADATA } from "~/lib/utils"; 
 import { TipBox } from "~/components/wallet/TipBox";
 import { useTheme } from "next-themes";
+import { ThemeToggle } from "~/components/ui/ThemeToggle";
 
 // --- IMPORT ICON ---
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
-  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, 
-  HelpCircle, Smartphone, Sun, Moon 
+  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone 
 } from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
@@ -50,7 +50,7 @@ export default function Home() {
   const { address, isConnected, chainId } = useAccount(); 
   const { connectors, connect } = useConnect();
   const { writeContracts, isPending: isTxPending } = useWriteContracts();
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
 
   // State
   const [mounted, setMounted] = useState(false);
@@ -65,10 +65,7 @@ export default function Home() {
   const [isAdded, setIsAdded] = useState(false); 
   const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
 
-  // Mencegah hydration error
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   // Logic Capabilities (Paymaster)
   const { data: availableCapabilities } = useCapabilities({
@@ -89,16 +86,14 @@ export default function Home() {
     if (!address) return;
     setTxStatusMessage("Processing transaction...");
     try {
-      writeContracts({
-        contracts: [{ address: BOOST_CONTRACT_ADDRESS, abi: BOOST_ABI, functionName: 'boost', args: [] }],
-        capabilities, 
-      }, {
-        onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
-        onError: () => setTxStatusMessage("Failed. Please try again.")
-      });
-    } catch (err) { 
-      setTxStatusMessage("Error initializing transaction.");
-    }
+        writeContracts({
+            contracts: [{ address: BOOST_CONTRACT_ADDRESS, abi: BOOST_ABI, functionName: 'boost', args: [] }],
+            capabilities, 
+        }, {
+            onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
+            onError: () => setTxStatusMessage("Failed. Please try again.")
+        });
+    } catch (err) { setTxStatusMessage("Error initializing transaction."); }
   };
 
   const startTour = () => {
@@ -112,10 +107,10 @@ export default function Home() {
         { element: '#verification-status', popover: { title: 'Your Status', description: 'This badge shows if you are Verified Human on Base.', side: "bottom" } },
         { element: '#neynar-card', popover: { title: 'Neynar Score', description: 'Your activity score on Farcaster.', side: "top" } },
         { element: '#talent-card', popover: { title: 'Talent Score', description: 'Your builder reputation score.', side: "top" } },
-        { element: '#gitcoin-card', popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score. Click calculate to update.', side: "top" } },
+        { element: '#gitcoin-card', popover: { title: 'Gitcoin Passport', description: 'Anti-sybil score.', side: "top" } },
         { element: '#verification-box', popover: { title: 'Base App Verification', description: 'Exclusive for Base Smart Wallet users.', side: "top" } },
         { element: '#boost-btn', popover: { title: 'Boost Activity', description: 'Perform an onchain transaction here.', side: "top" } },
-        { element: '#tip-box-container', popover: { title: 'Support', description: 'Support the project with a small tip.', side: "top" } }
+        { element: '#tip-box-container', popover: { title: 'Support', description: 'Support the project here.', side: "top" } }
       ]
     });
     tourDriver.drive();
@@ -136,7 +131,7 @@ export default function Home() {
               localStorage.setItem('tour_seen_v5', 'true');
           }
         }
-      } catch (err) { console.error("SDK Init Error:", err); }
+      } catch (err) { console.error(err); }
     };
     if (sdk && !isSDKLoaded) load();
   }, [isSDKLoaded]);
@@ -161,7 +156,7 @@ export default function Home() {
   };
 
   const fetchGitcoinScore = async (addresses: string[]) => {
-    if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) return;
+    if (!GITCOIN_API_KEY || !GITCOIN_SCORER_ID) { setGitcoinScore(null); return; }
     try {
         const scorePromises = addresses.map(async (addr) => {
             const res = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${addr}`, { headers: { "X-API-Key": GITCOIN_API_KEY } });
@@ -190,7 +185,7 @@ export default function Home() {
   };
 
   const fetchTalentScore = async (addresses: string[]) => {
-    if (!TALENT_API_KEY) return;
+    if (!TALENT_API_KEY) { setTalentScore(null); return; }
     try {
         const response = await fetch(`https://api.talentprotocol.com/scores?id=${addresses[0]}`, { headers: { "X-API-KEY": TALENT_API_KEY } });
         const data = await response.json();
@@ -200,27 +195,23 @@ export default function Home() {
   };
 
   const fetchAddressAndStats = async (fid: number) => {
-    const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-    if (!apiKey) return;
     try {
+      const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+      if (!apiKey) return;
       const res = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, { headers: { api_key: apiKey } });
       const data = await res.json();
-      if (data.users?.[0]) {
+      if (data.users && data.users[0]) {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "N/A");
         const allAddresses = [user.custody_address, ...(user.verified_addresses?.eth_addresses || [])].filter(Boolean);
-        if (allAddresses.length > 0) {
-          checkVerifications(allAddresses);
-          fetchGitcoinScore(allAddresses);
-          fetchTalentScore(allAddresses);
-        }
+        if (allAddresses.length > 0) { checkVerifications(allAddresses); fetchGitcoinScore(allAddresses); fetchTalentScore(allAddresses); }
       }
     } catch (error) { console.error(error); }
   };
   
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) { } };
   const handleShareCast = () => {
-      const shareText = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${talentScore || "N/A"}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
+      const shareText = `Check my reputation on Base! 🛡️\n\nNeynar Score: ${neynarScore}\nTalent Score: ${talentScore || "N/A"}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
       sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(METADATA.homeUrl)}`);
   };
 
@@ -231,7 +222,7 @@ export default function Home() {
       
       {/* === HEADER === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-border">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 relative overflow-visible">
               <motion.div 
                   initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }}
                   className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-lg border border-white/20"
@@ -245,20 +236,14 @@ export default function Home() {
               </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* THEME TOGGLE BUTTON */}
-            <button 
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="p-2 text-muted-foreground hover:text-primary transition bg-muted/50 rounded-full border border-border"
-            >
-                {theme === "dark" ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
-            </button>
+            <ThemeToggle />
             <button onClick={startTour} className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border">
                 <HelpCircle className="w-5 h-5" />
             </button>
           </div>
       </div>
 
-      {/* PROFILE CARD */}
+      {/* MAIN CARD */}
       <div id="profile-card" className="bg-card/50 backdrop-blur-md p-6 rounded-2xl border border-primary/20 mb-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
@@ -322,7 +307,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center justify-between">
                         <p className="text-lg font-bold text-orange-500">{gitcoinScore || "0.00"}</p>
-                        <button onClick={submitPassport} disabled={isSubmittingPassport} className="p-1 bg-orange-500/10 rounded-md text-orange-500 hover:bg-orange-500/20 transition-all">
+                        <button onClick={submitPassport} disabled={isSubmittingPassport} className="p-1 bg-orange-500/10 rounded-md text-orange-500">
                             <RefreshCcw className={`w-3 h-3 ${isSubmittingPassport ? 'animate-spin' : ''}`} />
                         </button>
                     </div>
@@ -330,7 +315,7 @@ export default function Home() {
              </div>
         </div>
 
-        {/* --- ACTIONS --- */}
+        {/* --- TOMBOL AKSI --- */}
         {isConnected ? (
           <div className="space-y-3 relative z-10">
             <div id="verification-box" className="border border-primary/20 bg-primary/5 rounded-xl p-3 relative pt-5 mb-2">
@@ -348,18 +333,18 @@ export default function Home() {
             </div>
 
             <div id="boost-btn">
-                <button onClick={handleBoostActivity} disabled={isTxPending} className="w-full py-4 bg-primary text-primary-foreground rounded-xl font-bold text-xs tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_20px_rgba(0,82,255,0.3)]">
+                <button onClick={handleBoostActivity} disabled={isTxPending} className="w-full py-4 bg-primary text-primary-foreground rounded-xl font-bold text-xs tracking-widest active:scale-95 disabled:opacity-50">
                     <Zap className={`w-4 h-4 inline-block mr-2 ${isTxPending ? "animate-pulse" : ""}`} />
                     {isTxPending ? "PROCESSING..." : "BOOST ACTIVITY (+1 TX)"}
                 </button>
                 {txStatusMessage && <p className="text-[10px] text-center mt-2 text-muted-foreground animate-pulse">{txStatusMessage}</p>}
             </div>
             
-            <div className="flex gap-2 mt-2">
-                <button onClick={handleAddMiniApp} disabled={isAdded} className="flex-1 py-2 bg-muted hover:bg-muted/80 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition">
-                    <Star className={`w-3 h-3 ${isAdded ? 'text-yellow-500' : ''}`} fill={isAdded ? "currentColor" : "none"}/> {isAdded ? "Added" : "Add App"}
+            <div className="flex gap-2">
+                <button onClick={handleAddMiniApp} disabled={isAdded} className="flex-1 py-2 bg-muted rounded-lg text-[10px] font-bold">
+                    <Star className={`w-3 h-3 ${isAdded ? 'text-yellow-500' : ''}`} fill={isAdded ? "currentColor" : "none"}/> Add App
                 </button>
-                <button onClick={handleShareCast} className="flex-1 py-2 bg-foreground text-background rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:opacity-90 transition">
+                <button onClick={handleShareCast} className="flex-1 py-2 bg-foreground text-background rounded-lg text-[10px] font-bold">
                     <Share2 className="w-3 h-3"/> Share Result
                 </button>
             </div>
@@ -367,7 +352,7 @@ export default function Home() {
         ) : (
           <div className="mt-4">
                {connectors.slice(0,1).map((connector) => (
-                 <button key={connector.uid} onClick={() => connect({ connector })} className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition flex items-center justify-center gap-2">
+                 <button key={connector.uid} onClick={() => connect({ connector })} className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold">
                    Connect Wallet
                  </button>
                ))}
@@ -375,14 +360,10 @@ export default function Home() {
         )}
       </div>
 
-      {/* TIP BOX */}
       <div id="tip-box-container" className="mt-auto">
         <TipBox />
-        <p className="text-[8px] text-center text-muted-foreground uppercase tracking-widest mt-4">
-          Built with 🔵 on Base by Chronique
-        </p>
+        <p className="text-[8px] text-center text-muted-foreground uppercase tracking-widest mt-4">Built with love on Base by Chronique</p>
       </div>
-
     </div>
   );
 }
