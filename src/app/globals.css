@@ -4,167 +4,93 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Base Docs inspired color palette */
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0052ff;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f8fafc;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #0052ff;
-  --radius: 0.5rem;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    /* Keep white background even in dark mode */
-    --background: #ffffff;
-    --foreground: #0f172a;
-    --card: #ffffff;
-    --card-foreground: #0f172a;
-    --popover: #ffffff;
-    --popover-foreground: #0f172a;
-    --primary: #0052ff;
-    --primary-foreground: #ffffff;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #0f172a;
-    --muted: #f8fafc;
-    --muted-foreground: #64748b;
-    --accent: #f1f5f9;
-    --accent-foreground: #0f172a;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #e2e8f0;
-    --input: #e2e8f0;
-    --ring: #0052ff;
+    /* Light Mode - Clean White & Base Blue */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%; /* Base Blue #0052ff */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.75rem;
   }
-}
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-feature-settings: 'rlig' 1, 'calt' 1;
-}
-
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-*::-webkit-scrollbar {
-  display: none;
-}
-
-/* Smooth scrolling for horizontal navigation */
-.overflow-x-auto {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
+  .dark {
+    /* Dark Mode - Deep Base Navy/Black */
+    --background: 222.2 84% 4.9%; /* Slate 950 #020617 */
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%; /* Brighter Blue for Dark Mode */
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
 }
 
 @layer base {
-  :root {
-    --radius: 0.5rem;
+  * {
+    @apply border-border;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 }
 
+/* Tetap menjaga animasi Marquee Anda */
 @layer utilities {
   .animate-marquee {
     display: inline-block;
     white-space: nowrap;
-    /* Durasi 8s agar tidak terlalu lambat, linear agar halus */
     animation: marquee 8s linear infinite;
-    padding-left: 100%; /* Memulai teks dari luar layar kanan */
+    padding-left: 100%;
   }
 }
 
 @keyframes marquee {
-  0% {
-    transform: translateX(0);
-    color: #ffffff; /* Mulai: Putih */
-  }
-  35% {
-    color: #ffffff; /* Masih Putih saat bergerak masuk */
-  }
-  50% {
-    color: #0052ff; /* Tengah: Biru Khas Base */
-    text-shadow: 0 0 15px rgba(0, 82, 255, 0.5); /* Efek Glow Biru */
-  }
-  65% {
-    color: #ffffff; /* Kembali Putih saat bergerak keluar */
-    text-shadow: none;
-  }
-  100% {
-    transform: translateX(-100%);
-    color: #ffffff; /* Selesai: Putih */
-  }
+  0% { transform: translateX(0); color: currentColor; }
+  50% { color: #0052ff; text-shadow: 0 0 15px rgba(0, 82, 255, 0.5); }
+  100% { transform: translateX(-100%); color: currentColor; }
 }
 
-/* --- DRIVER.JS TRANSPARENT POPOVER (GLASSMORPHISM) --- */
+/* Perbaikan untuk Driver.js agar tetap terbaca di mode gelap */
 .driver-popover {
-  background-color: rgba(15, 23, 42, 0.75) !important; /* Warna gelap transparan (Slate-900) */
-  backdrop-filter: blur(12px) !important; /* Efek Blur Kaca */
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important; /* Border tipis */
-  color: white !important;
+  @apply bg-popover text-popover-foreground border-border !important;
+  backdrop-filter: blur(12px) !important;
   border-radius: 20px !important;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
-  padding: 15px 20px !important;
-}
-
-/* Judul Pop-up */
-.driver-popover-title {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-  color: #60a5fa !important; /* Biru muda */
-  margin-bottom: 8px !important;
-}
-
-/* Deskripsi Pop-up */
-.driver-popover-description {
-  font-size: 13px !important;
-  color: #e2e8f0 !important; /* Putih abu */
-  line-height: 1.6 !important;
-}
-
-/* Panah Pop-up (Arrow) - Biar ikut transparan */
-.driver-popover-arrow-side-left.driver-popover-arrow {
-  border-left-color: rgba(15, 23, 42, 0.75) !important;
-}
-.driver-popover-arrow-side-right.driver-popover-arrow {
-  border-right-color: rgba(15, 23, 42, 0.75) !important;
-}
-.driver-popover-arrow-side-top.driver-popover-arrow {
-  border-top-color: rgba(15, 23, 42, 0.75) !important;
-}
-.driver-popover-arrow-side-bottom.driver-popover-arrow {
-  border-bottom-color: rgba(15, 23, 42, 0.75) !important;
-}
-
-/* Tombol Next/Done */
-.driver-popover-footer button {
-  background-color: #3b82f6 !important; /* Biru */
-  color: white !important;
-  border-radius: 10px !important;
-  text-shadow: none !important;
-  border: none !important;
-  font-size: 11px !important;
-  padding: 8px 16px !important;
-  font-weight: bold !important;
-}
-.driver-popover-footer button:hover {
-  background-color: #2563eb !important;
 }
