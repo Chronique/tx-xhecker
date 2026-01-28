@@ -49,9 +49,9 @@ export default function Home() {
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
   
-  // --- STATE TALENT (RANK & SCORE) ---
-  const [talentRank, setTalentRank] = useState<string>("-"); // Rank Position (e.g. 744)
-  const [talentScore, setTalentScore] = useState<string>("0"); // Builder Score (e.g. 85)
+  // --- STATE TALENT (SCORE & RANK) ---
+  const [talentScore, setTalentScore] = useState<string>("0");
+  const [talentRank, setTalentRank] = useState<string>("-");
 
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
@@ -93,7 +93,7 @@ export default function Home() {
   }, []);
 
   const fetchReputation = useCallback(async (addrs: string[]) => {
-    // --- GITCOIN ---
+    // --- 1. GITCOIN SCORE (Tetap sama) ---
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
@@ -105,43 +105,42 @@ export default function Home() {
       } catch (e) { setGitcoinScore("0.00"); }
     }
 
-    // --- TALENT PROTOCOL V2 (SCORE + PROFILE RANK) ---
+    // --- 2. TALENT PROTOCOL (Update: Score + Rank) ---
     if (TALENT_API_KEY) {
       try {
         const wallet = addrs[0];
         const headers = { "X-API-KEY": TALENT_API_KEY };
 
-        // Kita fetch 2 endpoint secara paralel:
-        // 1. Passports -> Untuk ambil Builder Score
-        // 2. Profiles -> Untuk ambil Rank Position
-        
+        // Panggil 2 Endpoint Paralel agar cepat:
+        // A. Passports -> Untuk ambil Builder Score
+        // B. Profiles -> Untuk ambil Rank Position
         const [passportRes, profileRes] = await Promise.allSettled([
           fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers }),
           fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers })
         ]);
 
-        // --- PROCESS SCORE (from Passport) ---
+        // Proses A: SCORE
         if (passportRes.status === "fulfilled") {
           const d = await passportRes.value.json();
           const rawScore = d.passport?.builder_score || 0;
           setTalentScore(rawScore.toString());
         }
 
-        // --- PROCESS RANK (from Profile) ---
+        // Proses B: RANK
         if (profileRes.status === "fulfilled") {
           const d = await profileRes.value.json();
-          // Sesuai JSON user: profile -> rank_position
-          const rawRank = d.profile?.rank_position || d.profile?.user?.rank_position || null;
+          // Cek field rank_position di dalam profile JSON
+          const rank = d.profile?.rank_position || d.profile?.user?.rank_position;
           
-          if (rawRank) {
-            setTalentRank(rawRank.toLocaleString()); // Format angka (contoh: 1,234)
+          if (rank) {
+            setTalentRank(rank.toLocaleString()); // Format angka (misal: 1,234)
           } else {
             setTalentRank("-");
           }
         }
       } catch (e) { 
         console.error("Talent API Error:", e);
-        setTalentScore("0");
+        setTalentScore("0"); 
         setTalentRank("-");
       }
     }
@@ -176,7 +175,7 @@ export default function Home() {
 
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) {} };
   const handleShareCast = () => {
-    // Menampilkan Rank di text share juga
+    // Tampilkan Rank di share cast
     const rankTxt = talentRank !== "-" ? `Rank #${talentRank}` : `Score ${talentScore}`;
     const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${rankTxt}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
     sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(txt)}&embeds[]=${encodeURIComponent(METADATA.homeUrl)}`);
@@ -284,19 +283,19 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {/* UPDATED TALENT CARD: RANK #NUMBER & SCORE */}
+            {/* UPDATED TALENT CARD: RANK BESAR, SCORE KECIL */}
             <div id="talent-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center relative overflow-hidden group">
               <div className="relative z-10">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Trophy className="w-3 h-3 text-purple-400" />
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">Talent Rank</p>
                 </div>
-                {/* Tampilan Besar: Rank Number */}
+                {/* Menampilkan Rank sebagai highlight utama */}
                 <div className="flex items-baseline gap-1">
                   <span className="text-sm font-bold text-purple-400/70">#</span>
                   <p className="text-2xl font-black text-purple-400">{talentRank}</p>
                 </div>
-                {/* Tampilan Kecil: Score */}
+                {/* Menampilkan Score di bawah */}
                 <p className="text-[8px] text-muted-foreground mt-0.5 font-mono opacity-80">
                   Score: {talentScore}
                 </p>
