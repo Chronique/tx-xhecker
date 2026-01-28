@@ -1,6 +1,6 @@
 import { createConfig, http, WagmiProvider as Provider } from "wagmi";
 import { base, optimism, type Chain } from "wagmi/chains"; 
-import { baseAccount } from "wagmi/connectors";
+import { baseAccount, coinbaseWallet, injected } from "wagmi/connectors"; // <--- TAMBAH INI
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { METADATA } from "../../lib/utils";
@@ -16,12 +16,8 @@ if (paymasterUrl) {
         ...base,
         rpcUrls: {
             ...base.rpcUrls,
-            default: {
-                http: [paymasterUrl],
-            },
-            public: {
-                http: [paymasterUrl],
-            }
+            default: { http: [paymasterUrl] },
+            public: { http: [paymasterUrl] }
         }
     } as Chain;
 }
@@ -36,16 +32,21 @@ export const config = createConfig({
   },
   connectors: [
     farcasterMiniApp(), 
+    // Tambahkan fallback connector untuk Localhost / Desktop:
     baseAccount({
       appName: METADATA.name,
       appLogoUrl: METADATA.iconImageUrl,
-    })
+    }),
+    coinbaseWallet({ 
+      appName: METADATA.name,
+      appLogoUrl: METADATA.iconImageUrl
+    }),
+    injected(), // Ini untuk Metamask / Browser Wallet biasa
   ],
 });
 
 const queryClient = new QueryClient();
 
-// ✅ FIX: Ganti nama export default menjadi WagmiProvider
 export default function WagmiProvider({ children }: { children: React.ReactNode }) {
   return (
     <Provider config={config}>

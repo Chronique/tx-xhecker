@@ -94,14 +94,13 @@ export default function Home() {
 
   const fetchReputation = useCallback(async (addrs: string[]) => {
     // ------------------------------------------------------------------
-    // 1. GITCOIN SCORE (Tetap via API Passport V2)
+    // 1. GITCOIN SCORE (Looping semua address)
     // ------------------------------------------------------------------
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
           const res = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${a}`, { headers: { "X-API-Key": GITCOIN_API_KEY } });
           const d = await res.json();
-          // Fallback logic untuk Gitcoin
           return d.evidence?.rawScore ? parseFloat(d.evidence.rawScore) : (d.score ? parseFloat(d.score) : 0);
         }));
         setGitcoinScore(Math.max(...scores).toFixed(2));
@@ -112,43 +111,49 @@ export default function Home() {
     }
 
     // ------------------------------------------------------------------
-    // 2. TALENT PROTOCOL (Ganti ke Endpoint Baru yang ada Rank-nya)
+    // 2. TALENT PROTOCOL (Looping semua address juga!)
     // ------------------------------------------------------------------
     if (TALENT_API_KEY) {
       try {
-        const wallet = addrs[0];
         const headers = { "X-API-KEY": TALENT_API_KEY };
-
-        // Kita panggil 2 endpoint baru ini (v2) karena endpoint lama (/scores)
-        // tidak menyediakan data "rank_position" yang kita butuhkan.
         
-        // A. Ambil Builder Score (Passports Endpoint)
-        // B. Ambil Rank Position (Profiles Endpoint)
-        
-        const [passportRes, profileRes] = await Promise.allSettled([
-          fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers }),
-          fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers })
-        ]);
+        // Kita cek SETIAP address yang user punya, bukan cuma yang pertama.
+        // Karena bisa jadi akun Talent-nya ada di wallet kedua/ketiga.
+        const talentPromises = addrs.map(async (wallet) => {
+          try {
+            // A. Fetch SCORE (Passports) - Ambil Angka saja
+            const passportRes = await fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers });
+            const passportData = passportRes.ok ? await passportRes.json() : null;
+            const score = passportData?.passport?.builder_score || 0;
 
-        // --- PROSES SCORE ---
-        if (passportRes.status === "fulfilled") {
-          const d = await passportRes.value.json();
-          const rawScore = d.passport?.builder_score || 0;
-          setTalentScore(rawScore.toString());
-        }
+            // B. Fetch RANK (Profiles) - Ambil Posisi Rank
+            const profileRes = await fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers });
+            const profileData = profileRes.ok ? await profileRes.json() : null;
+            const rank = profileData?.profile?.rank_position || profileData?.profile?.user?.rank_position || 0;
 
-        // --- PROSES RANK ---
-        if (profileRes.status === "fulfilled") {
-          const d = await profileRes.value.json();
-          // Mengambil field 'rank_position' dari JSON Profile
-          const rank = d.profile?.rank_position || d.profile?.user?.rank_position;
-          
-          if (rank) {
-            setTalentRank(rank.toLocaleString()); // Format angka (contoh: 1,234)
-          } else {
-            setTalentRank("-");
+            return { score, rank };
+          } catch (err) {
+            return { score: 0, rank: 0 };
           }
+        });
+
+        const results = await Promise.all(talentPromises);
+
+        // Cari hasil terbaik dari semua wallet
+        // Prioritas: Score tertinggi
+        const bestResult = results.reduce((prev, current) => {
+          return (current.score > prev.score) ? current : prev;
+        }, { score: 0, rank: 0 });
+
+        setTalentScore(bestResult.score.toString());
+        
+        // Tampilkan rank jika ada, kalau 0 atau null tampilkan "-"
+        if (bestResult.rank > 0) {
+          setTalentRank(bestResult.rank.toLocaleString());
+        } else {
+          setTalentRank("-");
         }
+
       } catch (e) { 
         console.error("Talent API Error:", e);
         setTalentScore("0"); 
@@ -305,7 +310,7 @@ export default function Home() {
                   <span className="text-sm font-bold text-purple-400/70">#</span>
                   <p className="text-2xl font-black text-purple-400">{talentRank}</p>
                 </div>
-                {/* Menampilkan Score di bawah */}
+                {/* Menampilkan Score (Angka) di bawah */}
                 <p className="text-[8px] text-muted-foreground mt-0.5 font-mono opacity-80">
                   Score: {talentScore}
                 </p>
@@ -381,9 +386,25 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <button onClick={() => connect({ connector: connectors[0] })} className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg">
-            Connect Wallet
-          </button>
+          <button 
+  onClick={() => {
+    // Logika Pintar: Pilih Connector
+    const fcConnector = connectors.find(c => c.id === 'farcaster-miniapp');
+    const otherConnector = connectors.find(c => c.id !== 'farcaster-miniapp'); // Base/Injected
+
+    // Jika di dalam Farcaster (SDK Loaded), pakai connector Farcaster
+    if (isSDKLoaded && fcConnector) {
+      connect({ connector: fcConnector });
+    } else {
+      // Jika di Localhost/Browser biasa, pakai connector lain (misal Coinbase/Metamask)
+      // Supaya tidak bengong nungguin Farcaster context
+      connect({ connector: otherConnector || connectors[0] });
+    }
+  }} 
+  className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg"
+>
+  Connect Wallet
+</button>
         )}
       </div>
 
