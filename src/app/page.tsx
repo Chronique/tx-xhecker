@@ -12,7 +12,7 @@ import { ThemeToggle } from "~/components/ui/ThemeToggle";
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
-  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone 
+  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy
 } from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
@@ -49,9 +49,9 @@ export default function Home() {
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
   
-  // --- STATE TALENT (SCORE & RANK) ---
-  const [talentScore, setTalentScore] = useState<string | null>(null);
-  const [talentRank, setTalentRank] = useState<string | null>(null); // New State for Rank
+  // --- STATE TALENT (RANK & SCORE) ---
+  const [talentRank, setTalentRank] = useState<string>("-"); // Global Rank (e.g. 549)
+  const [talentScore, setTalentScore] = useState<string>("0"); // Score (e.g. 95)
 
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
@@ -105,33 +105,35 @@ export default function Home() {
       } catch (e) { setGitcoinScore("0.00"); }
     }
 
-    // --- TALENT PROTOCOL V2 (SCORE + RANK) ---
+    // --- TALENT PROTOCOL V2 (RANK & SCORE) ---
     if (TALENT_API_KEY) {
       try {
-        // Fetch V2 API
         const res = await fetch(`https://api.talentprotocol.com/api/v2/passports/${addrs[0]}`, { 
           headers: { "X-API-KEY": TALENT_API_KEY } 
         });
         const d = await res.json();
         
-        // Ambil Builder Score
+        console.log("Talent Response:", d); // Debugging: Cek console browser untuk melihat field rank jika tidak muncul
+
+        // Ambil Score
         const rawScore = d.passport?.builder_score || 0;
         setTalentScore(rawScore.toString());
 
-        // Hitung Rank/Level berdasarkan Score
-        let rankName = "Novice";
-        if (rawScore >= 250) rankName = "Elite";
-        else if (rawScore >= 170) rankName = "Expert";
-        else if (rawScore >= 120) rankName = "Advanced";
-        else if (rawScore >= 80) rankName = "Practitioner";
-        else if (rawScore >= 40) rankName = "Apprentice";
+        // Ambil Rank (Mencoba beberapa kemungkinan field)
+        // Jika API belum support 'rank' langsung di passport, fallback ke "-"
+        const rawRank = d.passport?.rank || d.passport?.score_rank || null;
         
-        setTalentRank(rankName);
+        if (rawRank) {
+          setTalentRank(rawRank.toString());
+        } else {
+          // Jika tidak ada rank, kita set ke "-" atau logic lain
+          setTalentRank("-"); 
+        }
 
       } catch (e) { 
         console.error("Talent API Error:", e);
         setTalentScore("0");
-        setTalentRank("Novice");
+        setTalentRank("-");
       }
     }
   }, []);
@@ -165,7 +167,9 @@ export default function Home() {
 
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) {} };
   const handleShareCast = () => {
-    const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${talentScore || "0"} (${talentRank})\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
+    // Menampilkan Rank di text share juga
+    const rankTxt = talentRank !== "-" ? `Rank #${talentRank}` : `Score ${talentScore}`;
+    const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${rankTxt}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
     sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(txt)}&embeds[]=${encodeURIComponent(METADATA.homeUrl)}`);
   };
 
@@ -205,7 +209,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground p-6 font-mono transition-colors duration-300 flex flex-col overflow-x-hidden relative">
       
-      {/* === HEADER (Restored Glow) === */}
+      {/* === HEADER === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-border relative z-20">
         <div className="flex items-center gap-4 relative overflow-visible">
           <motion.div 
@@ -228,7 +232,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MAIN CARD (Restored Blur & Card Effect) */}
+      {/* MAIN CARD */}
       <div id="profile-card" className="bg-card/50 backdrop-blur-md p-6 rounded-2xl border border-primary/20 mb-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
@@ -271,17 +275,26 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {/* UPDATED TALENT CARD WITH RANK */}
-            <div id="talent-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Code2 className="w-3 h-3 text-purple-400" />
-                <p className="text-[9px] text-muted-foreground uppercase font-bold">Talent</p>
+            {/* UPDATED TALENT CARD: RANK #NUMBER */}
+            <div id="talent-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center relative overflow-hidden group">
+              <div className="relative z-10">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Trophy className="w-3 h-3 text-purple-400" />
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold">Talent Rank</p>
+                </div>
+                {/* Tampilan Besar: Rank Number */}
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm font-bold text-purple-400/70">#</span>
+                  <p className="text-2xl font-black text-purple-400">{talentRank}</p>
+                </div>
+                {/* Tampilan Kecil: Score */}
+                <p className="text-[8px] text-muted-foreground mt-0.5 font-mono opacity-80">
+                  Score: {talentScore}
+                </p>
               </div>
-              <p className="text-lg font-bold text-purple-400 leading-none">{talentScore || "0"}</p>
-              {/* Display Rank Here */}
-              <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1 tracking-wider opacity-80">
-                {talentRank || "..."}
-              </p>
+              <div className="absolute right-0 bottom-0 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Trophy className="w-10 h-10 -mb-2 -mr-2" />
+              </div>
             </div>
 
             <div id="gitcoin-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
