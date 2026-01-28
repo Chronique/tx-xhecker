@@ -48,12 +48,15 @@ export default function Home() {
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
+  
+  // --- STATE TALENT (SCORE & RANK) ---
   const [talentScore, setTalentScore] = useState<string | null>(null);
+  const [talentRank, setTalentRank] = useState<string | null>(null); // New State for Rank
+
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
   const [isAdded, setIsAdded] = useState(false); 
-  const [isSubmittingPassport, setIsSubmittingPassport] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -66,7 +69,7 @@ export default function Home() {
     return undefined;
   }, [availableCapabilities, chainId]);
 
-  // --- LOGIC FETCHING (Utuh Sesuai Kode Awal) ---
+  // --- LOGIC FETCHING ---
   const checkVerifications = useCallback(async (addrs: string[]) => {
     try {
       const formatted = addrs.map(a => a.toLowerCase());
@@ -90,6 +93,7 @@ export default function Home() {
   }, []);
 
   const fetchReputation = useCallback(async (addrs: string[]) => {
+    // --- GITCOIN ---
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
@@ -100,13 +104,35 @@ export default function Home() {
         setGitcoinScore(Math.max(...scores).toFixed(2));
       } catch (e) { setGitcoinScore("0.00"); }
     }
+
+    // --- TALENT PROTOCOL V2 (SCORE + RANK) ---
     if (TALENT_API_KEY) {
       try {
-        const res = await fetch(`https://api.talentprotocol.com/scores?id=${addrs[0]}`, { headers: { "X-API-KEY": TALENT_API_KEY } });
+        // Fetch V2 API
+        const res = await fetch(`https://api.talentprotocol.com/api/v2/passports/${addrs[0]}`, { 
+          headers: { "X-API-KEY": TALENT_API_KEY } 
+        });
         const d = await res.json();
-        const s = d.scores?.find((x: any) => x.slug === "builder_score");
-        setTalentScore(s ? s.points.toString() : "0");
-      } catch (e) { setTalentScore("0"); }
+        
+        // Ambil Builder Score
+        const rawScore = d.passport?.builder_score || 0;
+        setTalentScore(rawScore.toString());
+
+        // Hitung Rank/Level berdasarkan Score
+        let rankName = "Novice";
+        if (rawScore >= 250) rankName = "Elite";
+        else if (rawScore >= 170) rankName = "Expert";
+        else if (rawScore >= 120) rankName = "Advanced";
+        else if (rawScore >= 80) rankName = "Practitioner";
+        else if (rawScore >= 40) rankName = "Apprentice";
+        
+        setTalentRank(rankName);
+
+      } catch (e) { 
+        console.error("Talent API Error:", e);
+        setTalentScore("0");
+        setTalentRank("Novice");
+      }
     }
   }, []);
 
@@ -139,7 +165,7 @@ export default function Home() {
 
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) {} };
   const handleShareCast = () => {
-    const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${talentScore || "0"}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
+    const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${talentScore || "0"} (${talentRank})\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
     sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(txt)}&embeds[]=${encodeURIComponent(METADATA.homeUrl)}`);
   };
 
@@ -245,13 +271,19 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-2">
+            {/* UPDATED TALENT CARD WITH RANK */}
             <div id="talent-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex items-center gap-1.5 mb-1">
                 <Code2 className="w-3 h-3 text-purple-400" />
                 <p className="text-[9px] text-muted-foreground uppercase font-bold">Talent</p>
               </div>
-              <p className="text-lg font-bold text-purple-400">{talentScore || "0"}</p>
+              <p className="text-lg font-bold text-purple-400 leading-none">{talentScore || "0"}</p>
+              {/* Display Rank Here */}
+              <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1 tracking-wider opacity-80">
+                {talentRank || "..."}
+              </p>
             </div>
+
             <div id="gitcoin-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex justify-between items-center mb-1">
                 <div className="flex items-center gap-1.5">
@@ -267,7 +299,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- ACTIONS (Restored Animated Borders) --- */}
+        {/* --- ACTIONS --- */}
         {isConnected ? (
           <div className="space-y-3 relative z-10">
             <div id="verification-box" className="border border-primary/20 bg-primary/5 rounded-xl p-3 relative pt-5 mb-2">
@@ -276,7 +308,6 @@ export default function Home() {
               </div>
 
               <div className="space-y-2">
-                {/* RESTORED ANIMATED BUTTON: VERIFY SOCIAL */}
                 <a href={VERIFY_SOCIAL_URL} target="_blank" className="group relative w-full py-2.5 block rounded-lg overflow-hidden transition-all active:scale-95 border border-primary/30">
                   <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#3b82f6_50%,transparent_100%)] opacity-20 group-hover:opacity-60 transition-opacity"></div>
                   <div className="absolute inset-[1px] bg-card rounded-lg z-10"></div>
@@ -286,7 +317,6 @@ export default function Home() {
                   </div>
                 </a>
 
-                {/* RESTORED ANIMATED BUTTON: VERIFY IDENTITY */}
                 <a href={VERIFY_IDENTITY_URL} target="_blank" className="group relative w-full py-2.5 block rounded-lg overflow-hidden transition-all active:scale-95 border border-green-500/30">
                   <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#22c55e_50%,transparent_100%)] opacity-20 group-hover:opacity-60 transition-opacity"></div>
                   <div className="absolute inset-[1px] bg-card rounded-lg z-10"></div>
@@ -298,7 +328,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* RESTORED ANIMATED BUTTON: BOOST */}
             <div id="boost-btn">
               <button onClick={handleBoost} disabled={isTxPending} className="group relative w-full py-4 bg-primary rounded-xl overflow-hidden transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_20px_rgba(0,82,255,0.2)]">
                 <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#ffffff_50%,transparent_100%)] opacity-20 group-hover:opacity-40 transition-opacity"></div>
