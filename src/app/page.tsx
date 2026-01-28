@@ -50,8 +50,8 @@ export default function Home() {
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
   
   // --- STATE TALENT (RANK & SCORE) ---
-  const [talentRank, setTalentRank] = useState<string>("-"); // Global Rank (e.g. 549)
-  const [talentScore, setTalentScore] = useState<string>("0"); // Score (e.g. 95)
+  const [talentRank, setTalentRank] = useState<string>("-"); // Rank Position (e.g. 744)
+  const [talentScore, setTalentScore] = useState<string>("0"); // Builder Score (e.g. 85)
 
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
@@ -105,31 +105,40 @@ export default function Home() {
       } catch (e) { setGitcoinScore("0.00"); }
     }
 
-    // --- TALENT PROTOCOL V2 (RANK & SCORE) ---
+    // --- TALENT PROTOCOL V2 (SCORE + PROFILE RANK) ---
     if (TALENT_API_KEY) {
       try {
-        const res = await fetch(`https://api.talentprotocol.com/api/v2/passports/${addrs[0]}`, { 
-          headers: { "X-API-KEY": TALENT_API_KEY } 
-        });
-        const d = await res.json();
-        
-        console.log("Talent Response:", d); // Debugging: Cek console browser untuk melihat field rank jika tidak muncul
+        const wallet = addrs[0];
+        const headers = { "X-API-KEY": TALENT_API_KEY };
 
-        // Ambil Score
-        const rawScore = d.passport?.builder_score || 0;
-        setTalentScore(rawScore.toString());
-
-        // Ambil Rank (Mencoba beberapa kemungkinan field)
-        // Jika API belum support 'rank' langsung di passport, fallback ke "-"
-        const rawRank = d.passport?.rank || d.passport?.score_rank || null;
+        // Kita fetch 2 endpoint secara paralel:
+        // 1. Passports -> Untuk ambil Builder Score
+        // 2. Profiles -> Untuk ambil Rank Position
         
-        if (rawRank) {
-          setTalentRank(rawRank.toString());
-        } else {
-          // Jika tidak ada rank, kita set ke "-" atau logic lain
-          setTalentRank("-"); 
+        const [passportRes, profileRes] = await Promise.allSettled([
+          fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers }),
+          fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers })
+        ]);
+
+        // --- PROCESS SCORE (from Passport) ---
+        if (passportRes.status === "fulfilled") {
+          const d = await passportRes.value.json();
+          const rawScore = d.passport?.builder_score || 0;
+          setTalentScore(rawScore.toString());
         }
 
+        // --- PROCESS RANK (from Profile) ---
+        if (profileRes.status === "fulfilled") {
+          const d = await profileRes.value.json();
+          // Sesuai JSON user: profile -> rank_position
+          const rawRank = d.profile?.rank_position || d.profile?.user?.rank_position || null;
+          
+          if (rawRank) {
+            setTalentRank(rawRank.toLocaleString()); // Format angka (contoh: 1,234)
+          } else {
+            setTalentRank("-");
+          }
+        }
       } catch (e) { 
         console.error("Talent API Error:", e);
         setTalentScore("0");
@@ -275,7 +284,7 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {/* UPDATED TALENT CARD: RANK #NUMBER */}
+            {/* UPDATED TALENT CARD: RANK #NUMBER & SCORE */}
             <div id="talent-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center relative overflow-hidden group">
               <div className="relative z-10">
                 <div className="flex items-center gap-1.5 mb-1">
