@@ -95,8 +95,9 @@ export default function Home() {
     } catch (e) { console.error(e); }
   }, []);
 
-  const fetchReputation = useCallback(async (addrs: string[]) => {
-    // 1. GITCOIN SCORE
+  // --- UPDATE: Menerima param FID opsional ---
+  const fetchReputation = useCallback(async (addrs: string[], fid?: number) => {
+    // 1. GITCOIN SCORE (Tetap via Wallet)
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
@@ -108,19 +109,23 @@ export default function Home() {
       } catch (e) { setGitcoinScore("0.00"); }
     }
 
-    // 2. TALENT PROTOCOL (Builder & Creator Score)
+    // 2. TALENT PROTOCOL (Cek Wallet + Cek FID)
     if (TALENT_API_KEY) {
       try {
         const headers = { "X-API-KEY": TALENT_API_KEY };
         
-        // Loop semua wallet untuk cari skor terbaik
-        const talentPromises = addrs.map(async (wallet) => {
+        // --- Gabungkan Address & FID ke dalam satu list target ---
+        const targets = [...addrs];
+        if (fid) targets.push(fid.toString()); // Tambah FID ke antrian cek
+
+        console.log("🔍 Checking Talent for:", targets);
+
+        const talentPromises = targets.map(async (target) => {
           try {
-            // Gunakan endpoint /scores yang terbukti jalan
-            const res = await fetch(`https://api.talentprotocol.com/scores?id=${wallet}`, { headers });
+            // Fetch ke endpoint /scores dengan ID dinamis (Wallet atau FID)
+            const res = await fetch(`https://api.talentprotocol.com/scores?id=${target}`, { headers });
             const data = res.ok ? await res.json() : null;
             
-            // Parse Array "scores"
             const scoresList = data?.scores || [];
             
             // Ambil Builder Score
@@ -132,7 +137,7 @@ export default function Home() {
             const creatorData = scoresList.find((s: any) => s.slug === 'creator_score');
             const creatorPoints = creatorData?.points || 0;
 
-            console.log(`👤 Wallet ${wallet.slice(0,6)}... -> Builder: ${builderPoints} (Rank ${builderRank}), Creator: ${creatorPoints}`);
+            console.log(`👤 Target ${target.slice(0,10)}... -> Builder: ${builderPoints}, Rank: ${builderRank}`);
             
             return { builderPoints, builderRank, creatorPoints };
           } catch (err) {
@@ -142,11 +147,10 @@ export default function Home() {
 
         const results = await Promise.all(talentPromises);
 
-        // Cari hasil terbaik (Prioritas: Builder Score tertinggi)
+        // Cari hasil terbaik
         const bestResult = results.reduce((prev, current) => {
           if (current.builderPoints > prev.builderPoints) return current;
           if (current.builderPoints === prev.builderPoints) {
-             // Jika skor sama, ambil yang rankingnya lebih valid (ranking 1 lebih bagus dari 0)
              if (current.builderRank > 0 && (prev.builderRank === 0 || current.builderRank < prev.builderRank)) return current;
           }
           return prev;
@@ -178,7 +182,12 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "0.00");
         const addrs = [user.custody_address, ...(user.verified_addresses?.eth_addresses || [])].filter(Boolean);
-        if (addrs.length > 0) { checkVerifications(addrs); fetchReputation(addrs); }
+        
+        // Pass FID juga ke sini
+        if (addrs.length > 0) { 
+          checkVerifications(addrs); 
+          fetchReputation(addrs, fid); 
+        }
       }
     } catch (e) { console.error(e); }
   }, [checkVerifications, fetchReputation]);
@@ -294,7 +303,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- SCORES GRID (SWAPPED & REDESIGNED) --- */}
+        {/* --- SCORES GRID (TALENT LEFT BIG) --- */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
           
           {/* LEFT: TALENT PROTOCOL (BIG) */}
@@ -327,14 +336,12 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {/* Background Decoration */}
             <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
           </div>
 
-          {/* RIGHT: NEYNAR & GITCOIN (SMALL STACKED) */}
+          {/* RIGHT: NEYNAR & GITCOIN (STACKED) */}
           <div className="flex flex-col gap-2">
             
-            {/* NEYNAR (Small Top) */}
             <div id="neynar-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex items-center gap-1.5 mb-1">
                 <Zap className="w-3 h-3 text-primary" />
@@ -343,14 +350,14 @@ export default function Home() {
               <p className="text-xl font-black text-foreground">{neynarScore}</p>
             </div>
 
-            {/* GITCOIN (Small Bottom) */}
             <div id="gitcoin-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex justify-between items-center mb-1">
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck className="w-3 h-3 text-orange-400" />
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">Gitcoin</p>
                 </div>
-                <button onClick={() => address && fetchReputation([address])} className="text-orange-400 hover:rotate-180 transition-transform">
+                {/* Tombol Refresh mengirim FID juga */}
+                <button onClick={() => address && fetchReputation([address], farcasterUser?.fid)} className="text-orange-400 hover:rotate-180 transition-transform">
                   <RefreshCcw className="w-3 h-3" />
                 </button>
               </div>
