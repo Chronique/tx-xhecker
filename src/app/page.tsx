@@ -93,15 +93,15 @@ export default function Home() {
   }, []);
 
   const fetchReputation = useCallback(async (addrs: string[]) => {
-    // ---------------------------------------------------------
-    // 1. GITCOIN SCORE (via API Passport V2)
-    // ---------------------------------------------------------
+    // ------------------------------------------------------------------
+    // 1. GITCOIN SCORE (Tetap via API Passport V2)
+    // ------------------------------------------------------------------
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
           const res = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${a}`, { headers: { "X-API-Key": GITCOIN_API_KEY } });
           const d = await res.json();
-          // Logika fallback: evidence.rawScore -> score -> 0
+          // Fallback logic untuk Gitcoin
           return d.evidence?.rawScore ? parseFloat(d.evidence.rawScore) : (d.score ? parseFloat(d.score) : 0);
         }));
         setGitcoinScore(Math.max(...scores).toFixed(2));
@@ -111,38 +111,40 @@ export default function Home() {
       }
     }
 
-    // ---------------------------------------------------------
-    // 2. TALENT PROTOCOL (Score & Rank via Talent API)
-    // ---------------------------------------------------------
+    // ------------------------------------------------------------------
+    // 2. TALENT PROTOCOL (Ganti ke Endpoint Baru yang ada Rank-nya)
+    // ------------------------------------------------------------------
     if (TALENT_API_KEY) {
       try {
         const wallet = addrs[0];
         const headers = { "X-API-KEY": TALENT_API_KEY };
 
-        // Panggil 2 Endpoint berbeda secara paralel:
-        // A. Passports -> Untuk ambil Builder Score
-        // B. Profiles -> Untuk ambil Rank Position (sesuai JSON user)
+        // Kita panggil 2 endpoint baru ini (v2) karena endpoint lama (/scores)
+        // tidak menyediakan data "rank_position" yang kita butuhkan.
+        
+        // A. Ambil Builder Score (Passports Endpoint)
+        // B. Ambil Rank Position (Profiles Endpoint)
         
         const [passportRes, profileRes] = await Promise.allSettled([
           fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers }),
           fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers })
         ]);
 
-        // A. Proses Builder Score
+        // --- PROSES SCORE ---
         if (passportRes.status === "fulfilled") {
           const d = await passportRes.value.json();
           const rawScore = d.passport?.builder_score || 0;
           setTalentScore(rawScore.toString());
         }
 
-        // B. Proses Rank Position
+        // --- PROSES RANK ---
         if (profileRes.status === "fulfilled") {
           const d = await profileRes.value.json();
-          // Mengambil rank_position dari object profile (sesuai JSON yang kamu kirim)
+          // Mengambil field 'rank_position' dari JSON Profile
           const rank = d.profile?.rank_position || d.profile?.user?.rank_position;
           
           if (rank) {
-            setTalentRank(rank.toLocaleString()); // Format angka (misal: 1,234)
+            setTalentRank(rank.toLocaleString()); // Format angka (contoh: 1,234)
           } else {
             setTalentRank("-");
           }
