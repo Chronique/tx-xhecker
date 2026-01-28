@@ -12,7 +12,7 @@ import { ThemeToggle } from "~/components/ui/ThemeToggle";
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
-  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy
+  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy, Palette
 } from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
@@ -46,12 +46,15 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
+  
+  // --- STATE SKOR ---
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
   
-  // --- STATE TALENT (SCORE & RANK) ---
-  const [talentScore, setTalentScore] = useState<string>("0");
-  const [talentRank, setTalentRank] = useState<string>("-");
+  // --- STATE TALENT (LENGKAP) ---
+  const [talentBuilderScore, setTalentBuilderScore] = useState<string>("0");
+  const [talentBuilderRank, setTalentBuilderRank] = useState<string>("-");
+  const [talentCreatorScore, setTalentCreatorScore] = useState<string>("0");
 
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
@@ -92,7 +95,6 @@ export default function Home() {
     } catch (e) { console.error(e); }
   }, []);
 
-  // --- FIX: FETCH REPUTATION (DUPLICATE REMOVED) ---
   const fetchReputation = useCallback(async (addrs: string[]) => {
     // 1. GITCOIN SCORE
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
@@ -103,59 +105,66 @@ export default function Home() {
           return d.evidence?.rawScore ? parseFloat(d.evidence.rawScore) : (d.score ? parseFloat(d.score) : 0);
         }));
         setGitcoinScore(Math.max(...scores).toFixed(2));
-      } catch (e) { 
-        console.error("Gitcoin Error:", e);
-        setGitcoinScore("0.00"); 
-      }
+      } catch (e) { setGitcoinScore("0.00"); }
     }
 
-    // 2. TALENT PROTOCOL
+    // 2. TALENT PROTOCOL (Builder & Creator Score)
     if (TALENT_API_KEY) {
       try {
         const headers = { "X-API-KEY": TALENT_API_KEY };
+        
+        // Loop semua wallet untuk cari skor terbaik
         const talentPromises = addrs.map(async (wallet) => {
           try {
-            // A. Fetch SCORE
-            const passportRes = await fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers });
-            const passportData = passportRes.ok ? await passportRes.json() : null;
-            const score = passportData?.passport?.builder_score || 0;
+            // Gunakan endpoint /scores yang terbukti jalan
+            const res = await fetch(`https://api.talentprotocol.com/scores?id=${wallet}`, { headers });
+            const data = res.ok ? await res.json() : null;
+            
+            // Parse Array "scores"
+            const scoresList = data?.scores || [];
+            
+            // Ambil Builder Score
+            const builderData = scoresList.find((s: any) => s.slug === 'builder_score');
+            const builderPoints = builderData?.points || 0;
+            const builderRank = builderData?.rank_position || 0;
 
-            // B. Fetch RANK
-            const profileRes = await fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers });
-            const profileData = profileRes.ok ? await profileRes.json() : null;
-            const rank = profileData?.profile?.rank_position 
-                      || profileData?.profile?.user?.rank_position 
-                      || 0;
+            // Ambil Creator Score
+            const creatorData = scoresList.find((s: any) => s.slug === 'creator_score');
+            const creatorPoints = creatorData?.points || 0;
 
-            return { score, rank };
+            console.log(`👤 Wallet ${wallet.slice(0,6)}... -> Builder: ${builderPoints} (Rank ${builderRank}), Creator: ${creatorPoints}`);
+            
+            return { builderPoints, builderRank, creatorPoints };
           } catch (err) {
-            return { score: 0, rank: 0 };
+            return { builderPoints: 0, builderRank: 0, creatorPoints: 0 };
           }
         });
 
         const results = await Promise.all(talentPromises);
 
+        // Cari hasil terbaik (Prioritas: Builder Score tertinggi)
         const bestResult = results.reduce((prev, current) => {
-          if (current.score > prev.score) return current;
-          if (current.score === prev.score) {
-            if (current.rank > 0 && prev.rank === 0) return current;
-            if (current.rank > 0 && current.rank < prev.rank) return current;
+          if (current.builderPoints > prev.builderPoints) return current;
+          if (current.builderPoints === prev.builderPoints) {
+             // Jika skor sama, ambil yang rankingnya lebih valid (ranking 1 lebih bagus dari 0)
+             if (current.builderRank > 0 && (prev.builderRank === 0 || current.builderRank < prev.builderRank)) return current;
           }
           return prev;
-        }, { score: 0, rank: 0 });
+        }, { builderPoints: 0, builderRank: 0, creatorPoints: 0 });
 
-        setTalentScore(bestResult.score.toString());
+        console.log("🏆 Best Talent Result:", bestResult);
+
+        setTalentBuilderScore(bestResult.builderPoints.toString());
+        setTalentCreatorScore(bestResult.creatorPoints.toString());
         
-        if (bestResult.rank > 0) {
-          setTalentRank(bestResult.rank.toLocaleString());
+        if (bestResult.builderRank > 0) {
+          setTalentBuilderRank(bestResult.builderRank.toLocaleString());
         } else {
-          setTalentRank("-");
+          setTalentBuilderRank("-");
         }
 
       } catch (e) { 
         console.error("Talent API Error:", e);
-        setTalentScore("0"); 
-        setTalentRank("-");
       }
     }
   }, []);
@@ -189,8 +198,8 @@ export default function Home() {
 
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) {} };
   const handleShareCast = () => {
-    const rankTxt = talentRank !== "-" ? `Rank #${talentRank}` : `Score ${talentScore}`;
-    const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${rankTxt}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
+    const rankTxt = talentBuilderRank !== "-" ? `Rank #${talentBuilderRank}` : `Score ${talentBuilderScore}`;
+    const txt = `Check my reputation on Base! 🛡️\n\nTalent: ${rankTxt}\nCreator: ${talentCreatorScore}\nNeynar: ${neynarScore}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
     sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(txt)}&embeds[]=${encodeURIComponent(METADATA.homeUrl)}`);
   };
 
@@ -285,39 +294,56 @@ export default function Home() {
           </div>
         </div>
 
-        {/* SCORES GRID */}
+        {/* --- SCORES GRID (SWAPPED & REDESIGNED) --- */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
-          <div id="neynar-card" className="p-4 bg-muted/40 rounded-xl text-center border border-border h-32 flex flex-col justify-center items-center group hover:border-primary/50 transition-colors">
-            <div className="flex items-center gap-1.5 mb-2">
-              <div className="p-1 bg-primary/20 rounded-md"><Zap className="w-3 h-3 text-primary" /></div>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase">Neynar</p>
+          
+          {/* LEFT: TALENT PROTOCOL (BIG) */}
+          <div id="talent-card" className="p-4 bg-muted/40 rounded-xl text-center border border-border h-auto flex flex-col justify-center items-center group hover:border-primary/50 transition-colors relative overflow-hidden">
+            <div className="relative z-10 w-full">
+              {/* Header */}
+              <div className="flex items-center justify-center gap-1.5 mb-3">
+                <Trophy className="w-4 h-4 text-purple-400" />
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Talent Protocol</p>
+              </div>
+
+              {/* Main Stat: Builder Score */}
+              <div className="flex flex-col items-center mb-3">
+                <p className="text-4xl font-black text-purple-400 leading-none">{talentBuilderScore}</p>
+                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mt-1">Builder Score</p>
+              </div>
+
+              {/* Sub Stats: Rank & Creator */}
+              <div className="flex justify-between w-full border-t border-border/50 pt-2 mt-2 px-2">
+                <div className="text-left">
+                  <p className="text-[8px] text-muted-foreground font-bold uppercase">Rank</p>
+                  <p className="text-sm font-bold text-foreground">#{talentBuilderRank}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[8px] text-muted-foreground font-bold uppercase">Creator</p>
+                  <div className="flex items-center justify-end gap-1">
+                    <Palette className="w-3 h-3 text-pink-400" />
+                    <p className="text-sm font-bold text-foreground">{talentCreatorScore}</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p className="text-3xl font-black">{neynarScore}</p>
+            {/* Background Decoration */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
           </div>
 
+          {/* RIGHT: NEYNAR & GITCOIN (SMALL STACKED) */}
           <div className="flex flex-col gap-2">
-            {/* UPDATED TALENT CARD: RANK BESAR, SCORE KECIL */}
-            <div id="talent-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center relative overflow-hidden group">
-              <div className="relative z-10">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Trophy className="w-3 h-3 text-purple-400" />
-                  <p className="text-[9px] text-muted-foreground uppercase font-bold">Talent Rank</p>
-                </div>
-                {/* Menampilkan Rank sebagai highlight utama */}
-                <div className="flex items-baseline gap-1">
-                  <span className="text-sm font-bold text-purple-400/70">#</span>
-                  <p className="text-2xl font-black text-purple-400">{talentRank}</p>
-                </div>
-                {/* Menampilkan Score (Angka) di bawah */}
-                <p className="text-[8px] text-muted-foreground mt-0.5 font-mono opacity-80">
-                  Score: {talentScore}
-                </p>
+            
+            {/* NEYNAR (Small Top) */}
+            <div id="neynar-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Zap className="w-3 h-3 text-primary" />
+                <p className="text-[9px] text-muted-foreground uppercase font-bold">Neynar</p>
               </div>
-              <div className="absolute right-0 bottom-0 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Trophy className="w-10 h-10 -mb-2 -mr-2" />
-              </div>
+              <p className="text-xl font-black text-foreground">{neynarScore}</p>
             </div>
 
+            {/* GITCOIN (Small Bottom) */}
             <div id="gitcoin-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex justify-between items-center mb-1">
                 <div className="flex items-center gap-1.5">
@@ -328,8 +354,9 @@ export default function Home() {
                   <RefreshCcw className="w-3 h-3" />
                 </button>
               </div>
-              <p className="text-lg font-bold text-orange-400">{gitcoinScore || "0.00"}</p>
+              <p className="text-xl font-black text-orange-400">{gitcoinScore || "0.00"}</p>
             </div>
+
           </div>
         </div>
 
@@ -384,18 +411,14 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* --- FIX: SMART CONNECT BUTTON (Agar tidak bengong di Localhost) --- */
           <button 
             onClick={() => {
-              // Cari connector yang pas
               const fcConnector = connectors.find(c => c.id === 'farcaster-miniapp');
-              const otherConnector = connectors.find(c => c.id !== 'farcaster-miniapp'); // Base/Injected
+              const otherConnector = connectors.find(c => c.id !== 'farcaster-miniapp'); 
 
-              // Jika SDK loaded (berarti di dalam Farcaster), pakai fcConnector
               if (isSDKLoaded && fcConnector) {
                 connect({ connector: fcConnector });
               } else {
-                // Jika di Localhost/Browser luar, pakai connector lain
                 connect({ connector: otherConnector || connectors[0] });
               }
             }} 
