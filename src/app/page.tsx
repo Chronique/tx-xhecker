@@ -93,43 +93,52 @@ export default function Home() {
   }, []);
 
   const fetchReputation = useCallback(async (addrs: string[]) => {
-    // --- 1. GITCOIN SCORE (Tetap sama) ---
+    // ---------------------------------------------------------
+    // 1. GITCOIN SCORE (via API Passport V2)
+    // ---------------------------------------------------------
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
           const res = await fetch(`https://api.passport.xyz/v2/stamps/${GITCOIN_SCORER_ID}/score/${a}`, { headers: { "X-API-Key": GITCOIN_API_KEY } });
           const d = await res.json();
+          // Logika fallback: evidence.rawScore -> score -> 0
           return d.evidence?.rawScore ? parseFloat(d.evidence.rawScore) : (d.score ? parseFloat(d.score) : 0);
         }));
         setGitcoinScore(Math.max(...scores).toFixed(2));
-      } catch (e) { setGitcoinScore("0.00"); }
+      } catch (e) { 
+        console.error("Gitcoin Error:", e);
+        setGitcoinScore("0.00"); 
+      }
     }
 
-    // --- 2. TALENT PROTOCOL (Update: Score + Rank) ---
+    // ---------------------------------------------------------
+    // 2. TALENT PROTOCOL (Score & Rank via Talent API)
+    // ---------------------------------------------------------
     if (TALENT_API_KEY) {
       try {
         const wallet = addrs[0];
         const headers = { "X-API-KEY": TALENT_API_KEY };
 
-        // Panggil 2 Endpoint Paralel agar cepat:
+        // Panggil 2 Endpoint berbeda secara paralel:
         // A. Passports -> Untuk ambil Builder Score
-        // B. Profiles -> Untuk ambil Rank Position
+        // B. Profiles -> Untuk ambil Rank Position (sesuai JSON user)
+        
         const [passportRes, profileRes] = await Promise.allSettled([
           fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers }),
           fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers })
         ]);
 
-        // Proses A: SCORE
+        // A. Proses Builder Score
         if (passportRes.status === "fulfilled") {
           const d = await passportRes.value.json();
           const rawScore = d.passport?.builder_score || 0;
           setTalentScore(rawScore.toString());
         }
 
-        // Proses B: RANK
+        // B. Proses Rank Position
         if (profileRes.status === "fulfilled") {
           const d = await profileRes.value.json();
-          // Cek field rank_position di dalam profile JSON
+          // Mengambil rank_position dari object profile (sesuai JSON yang kamu kirim)
           const rank = d.profile?.rank_position || d.profile?.user?.rank_position;
           
           if (rank) {
@@ -175,7 +184,6 @@ export default function Home() {
 
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) {} };
   const handleShareCast = () => {
-    // Tampilkan Rank di share cast
     const rankTxt = talentRank !== "-" ? `Rank #${talentRank}` : `Score ${talentScore}`;
     const txt = `Check my reputation on Base! 🛡️\n\nNeynar: ${neynarScore}\nTalent: ${rankTxt}\nVerified: ${isIdentityVerified ? "✅" : "❌"}`;
     sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(txt)}&embeds[]=${encodeURIComponent(METADATA.homeUrl)}`);
