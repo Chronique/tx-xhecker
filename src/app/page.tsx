@@ -92,10 +92,9 @@ export default function Home() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // --- FIX: FETCH REPUTATION (DUPLICATE REMOVED) ---
   const fetchReputation = useCallback(async (addrs: string[]) => {
-    // ------------------------------------------------------------------
-    // 1. GITCOIN SCORE (Looping semua address)
-    // ------------------------------------------------------------------
+    // 1. GITCOIN SCORE
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
@@ -110,26 +109,23 @@ export default function Home() {
       }
     }
 
-    // ------------------------------------------------------------------
-    // 2. TALENT PROTOCOL (Looping semua address juga!)
-    // ------------------------------------------------------------------
+    // 2. TALENT PROTOCOL
     if (TALENT_API_KEY) {
       try {
         const headers = { "X-API-KEY": TALENT_API_KEY };
-        
-        // Kita cek SETIAP address yang user punya, bukan cuma yang pertama.
-        // Karena bisa jadi akun Talent-nya ada di wallet kedua/ketiga.
         const talentPromises = addrs.map(async (wallet) => {
           try {
-            // A. Fetch SCORE (Passports) - Ambil Angka saja
+            // A. Fetch SCORE
             const passportRes = await fetch(`https://api.talentprotocol.com/api/v2/passports/${wallet}`, { headers });
             const passportData = passportRes.ok ? await passportRes.json() : null;
             const score = passportData?.passport?.builder_score || 0;
 
-            // B. Fetch RANK (Profiles) - Ambil Posisi Rank
+            // B. Fetch RANK
             const profileRes = await fetch(`https://api.talentprotocol.com/api/v2/profiles/${wallet}`, { headers });
             const profileData = profileRes.ok ? await profileRes.json() : null;
-            const rank = profileData?.profile?.rank_position || profileData?.profile?.user?.rank_position || 0;
+            const rank = profileData?.profile?.rank_position 
+                      || profileData?.profile?.user?.rank_position 
+                      || 0;
 
             return { score, rank };
           } catch (err) {
@@ -139,15 +135,17 @@ export default function Home() {
 
         const results = await Promise.all(talentPromises);
 
-        // Cari hasil terbaik dari semua wallet
-        // Prioritas: Score tertinggi
         const bestResult = results.reduce((prev, current) => {
-          return (current.score > prev.score) ? current : prev;
+          if (current.score > prev.score) return current;
+          if (current.score === prev.score) {
+            if (current.rank > 0 && prev.rank === 0) return current;
+            if (current.rank > 0 && current.rank < prev.rank) return current;
+          }
+          return prev;
         }, { score: 0, rank: 0 });
 
         setTalentScore(bestResult.score.toString());
         
-        // Tampilkan rank jika ada, kalau 0 atau null tampilkan "-"
         if (bestResult.rank > 0) {
           setTalentRank(bestResult.rank.toLocaleString());
         } else {
@@ -386,25 +384,25 @@ export default function Home() {
             </div>
           </div>
         ) : (
+          /* --- FIX: SMART CONNECT BUTTON (Agar tidak bengong di Localhost) --- */
           <button 
-  onClick={() => {
-    // Logika Pintar: Pilih Connector
-    const fcConnector = connectors.find(c => c.id === 'farcaster-miniapp');
-    const otherConnector = connectors.find(c => c.id !== 'farcaster-miniapp'); // Base/Injected
+            onClick={() => {
+              // Cari connector yang pas
+              const fcConnector = connectors.find(c => c.id === 'farcaster-miniapp');
+              const otherConnector = connectors.find(c => c.id !== 'farcaster-miniapp'); // Base/Injected
 
-    // Jika di dalam Farcaster (SDK Loaded), pakai connector Farcaster
-    if (isSDKLoaded && fcConnector) {
-      connect({ connector: fcConnector });
-    } else {
-      // Jika di Localhost/Browser biasa, pakai connector lain (misal Coinbase/Metamask)
-      // Supaya tidak bengong nungguin Farcaster context
-      connect({ connector: otherConnector || connectors[0] });
-    }
-  }} 
-  className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg"
->
-  Connect Wallet
-</button>
+              // Jika SDK loaded (berarti di dalam Farcaster), pakai fcConnector
+              if (isSDKLoaded && fcConnector) {
+                connect({ connector: fcConnector });
+              } else {
+                // Jika di Localhost/Browser luar, pakai connector lain
+                connect({ connector: otherConnector || connectors[0] });
+              }
+            }} 
+            className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg"
+          >
+            Connect Wallet
+          </button>
         )}
       </div>
 
