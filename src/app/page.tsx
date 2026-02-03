@@ -12,7 +12,8 @@ import { ThemeToggle } from "~/components/ui/ThemeToggle";
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
-  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy, Palette
+  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy, Palette,
+  Github // Tambahkan Github ke import lucide-react
 } from "lucide-react"; 
 
 // --- IMPORT MOTION & DRIVER ---
@@ -263,8 +264,22 @@ export default function Home() {
             <p className="text-[8px] text-muted-foreground mt-1 font-bold tracking-widest uppercase">Reputation Hub</p>
           </div>
         </div>
+        
+        {/* Kontainer Tombol Header */}
         <div className="flex items-center gap-2">
+          {/* Tombol GitHub */}
+          <a 
+            href="https://github.com/Chronique/tx-xhecker" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border flex items-center justify-center"
+            title="Source Code"
+          >
+            <Github className="w-5 h-5" />
+          </a>
+
           <ThemeToggle />
+          
           <button onClick={startTour} className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border">
             <HelpCircle className="w-5 h-5" />
           </button>
@@ -356,7 +371,6 @@ export default function Home() {
                   <ShieldCheck className="w-3 h-3 text-orange-400" />
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">Gitcoin</p>
                 </div>
-                {/* Tombol Refresh mengirim FID juga */}
                 <button onClick={() => address && fetchReputation([address], farcasterUser?.fid)} className="text-orange-400 hover:rotate-180 transition-transform">
                   <RefreshCcw className="w-3 h-3" />
                 </button>
