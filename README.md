@@ -1,8 +1,8 @@
-# 🛡️ TX Xhecker
+### TX Xhecker
 
 **TX Xhecker** is a comprehensive Verification and Transaction Utility hub for the **Base** ecosystem, built as a Farcaster Mini App (v2). It enables users to verify their on-chain identity, check social scores, and execute optimized transactions through a unified interface.
 
-
+![Repo Size](https://img.shields.io/github/repo-size/Chronique/tx-xhecker?color=blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 [![Follow on X](https://img.shields.io/twitter/follow/adhichronique?style=social)](https://x.com/adhichronique)
 
