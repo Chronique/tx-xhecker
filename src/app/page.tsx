@@ -7,21 +7,19 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { METADATA } from "~/lib/utils"; 
 import { TipBox } from "~/components/wallet/TipBox";
 import { ThemeToggle } from "~/components/ui/ThemeToggle";
+import { Attribution } from "ox/erc8021";
 
-// --- IMPORT ICON ---
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
-  AlertTriangle, Code2, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy, Palette,
-  Github // Tambahkan Github ke import lucide-react
+  AlertTriangle, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy, Palette,
+  Github, Wallet, ChevronDown
 } from "lucide-react"; 
 
-// --- IMPORT MOTION & DRIVER ---
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
-// --- KONFIGURASI ---
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
@@ -31,6 +29,8 @@ const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF";
 const VERIFY_SOCIAL_URL = "https://verify.base.dev/verifications"; 
 const VERIFY_IDENTITY_URL = "https://www.coinbase.com/onchain-verify"; 
 
+const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_1x8rrnnv"] });
+
 const BOOST_ABI = [
   { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "address", "name": "user", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "Boosted", "type": "event" },
   { "inputs": [], "name": "boost", "outputs": [], "stateMutability": "nonpayable", "type": "function" }
@@ -39,24 +39,28 @@ const BOOST_ABI = [
 const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
 const SCHEMA_TWITTER = "0x6291a26f3020617306263907727103a088924375375772392462332997632626";
 
+// --- WALLET CONFIG: label, icon, connector id ---
+const WALLET_OPTIONS = [
+  { id: "metaMask",       label: "MetaMask",          icon: "🦊" },
+  { id: "coinbaseWalletSDK", label: "Base Smart Wallet", icon: "🔵" },
+  { id: "walletConnect",  label: "WalletConnect",     icon: "🔗" },
+];
+
 export default function Home() {
   const { address, isConnected, chainId } = useAccount(); 
-  const { connectors, connect } = useConnect();
+  const { connectors, connect, isPending: isConnecting } = useConnect();
   const { writeContracts, isPending: isTxPending } = useWriteContracts();
   
   const [mounted, setMounted] = useState(false);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
   
-  // --- STATE SKOR ---
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
-  
-  // --- STATE TALENT (LENGKAP) ---
   const [talentBuilderScore, setTalentBuilderScore] = useState<string>("0");
   const [talentBuilderRank, setTalentBuilderRank] = useState<string>("-");
   const [talentCreatorScore, setTalentCreatorScore] = useState<string>("0");
-
   const [isIdentityVerified, setIsIdentityVerified] = useState(false); 
   const [isSocialVerified, setIsSocialVerified] = useState(false);     
   const [txStatusMessage, setTxStatusMessage] = useState(""); 
@@ -64,16 +68,16 @@ export default function Home() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // --- LOGIC PAYMASTER ---
   const { data: availableCapabilities } = useCapabilities({ account: address, query: { enabled: !!address } });
   const capabilities = useMemo(() => {
-    if (!availableCapabilities || !chainId || !PAYMASTER_URL) return undefined;
+    if (!availableCapabilities || !chainId) return { dataSuffix: DATA_SUFFIX };
     const caps = availableCapabilities[chainId];
-    if (caps?.["paymasterService"]?.supported) return { paymasterService: { url: PAYMASTER_URL } };
-    return undefined;
+    if (caps?.["paymasterService"]?.supported && PAYMASTER_URL) {
+      return { paymasterService: { url: PAYMASTER_URL }, dataSuffix: DATA_SUFFIX };
+    }
+    return { dataSuffix: DATA_SUFFIX };
   }, [availableCapabilities, chainId]);
 
-  // --- LOGIC FETCHING ---
   const checkVerifications = useCallback(async (addrs: string[]) => {
     try {
       const formatted = addrs.map(a => a.toLowerCase());
@@ -96,9 +100,7 @@ export default function Home() {
     } catch (e) { console.error(e); }
   }, []);
 
-  // --- UPDATE: Menerima param FID opsional ---
   const fetchReputation = useCallback(async (addrs: string[], fid?: number) => {
-    // 1. GITCOIN SCORE (Tetap via Wallet)
     if (GITCOIN_API_KEY && GITCOIN_SCORER_ID) {
       try {
         const scores = await Promise.all(addrs.map(async (a) => {
@@ -110,67 +112,39 @@ export default function Home() {
       } catch (e) { setGitcoinScore("0.00"); }
     }
 
-    // 2. TALENT PROTOCOL (Cek Wallet + Cek FID)
     if (TALENT_API_KEY) {
       try {
         const headers = { "X-API-KEY": TALENT_API_KEY };
-        
-        // --- Gabungkan Address & FID ke dalam satu list target ---
         const targets = [...addrs];
-        if (fid) targets.push(fid.toString()); // Tambah FID ke antrian cek
-
-        console.log("🔍 Checking Talent for:", targets);
+        if (fid) targets.push(fid.toString());
 
         const talentPromises = targets.map(async (target) => {
           try {
-            // Fetch ke endpoint /scores dengan ID dinamis (Wallet atau FID)
             const res = await fetch(`https://api.talentprotocol.com/scores?id=${target}`, { headers });
             const data = res.ok ? await res.json() : null;
-            
             const scoresList = data?.scores || [];
-            
-            // Ambil Builder Score
             const builderData = scoresList.find((s: any) => s.slug === 'builder_score');
             const builderPoints = builderData?.points || 0;
             const builderRank = builderData?.rank_position || 0;
-
-            // Ambil Creator Score
             const creatorData = scoresList.find((s: any) => s.slug === 'creator_score');
             const creatorPoints = creatorData?.points || 0;
-
-            console.log(`👤 Target ${target.slice(0,10)}... -> Builder: ${builderPoints}, Rank: ${builderRank}`);
-            
             return { builderPoints, builderRank, creatorPoints };
-          } catch (err) {
-            return { builderPoints: 0, builderRank: 0, creatorPoints: 0 };
-          }
+          } catch { return { builderPoints: 0, builderRank: 0, creatorPoints: 0 }; }
         });
 
         const results = await Promise.all(talentPromises);
-
-        // Cari hasil terbaik
         const bestResult = results.reduce((prev, current) => {
           if (current.builderPoints > prev.builderPoints) return current;
           if (current.builderPoints === prev.builderPoints) {
-             if (current.builderRank > 0 && (prev.builderRank === 0 || current.builderRank < prev.builderRank)) return current;
+            if (current.builderRank > 0 && (prev.builderRank === 0 || current.builderRank < prev.builderRank)) return current;
           }
           return prev;
         }, { builderPoints: 0, builderRank: 0, creatorPoints: 0 });
 
-        console.log("🏆 Best Talent Result:", bestResult);
-
         setTalentBuilderScore(bestResult.builderPoints.toString());
         setTalentCreatorScore(bestResult.creatorPoints.toString());
-        
-        if (bestResult.builderRank > 0) {
-          setTalentBuilderRank(bestResult.builderRank.toLocaleString());
-        } else {
-          setTalentBuilderRank("-");
-        }
-
-      } catch (e) { 
-        console.error("Talent API Error:", e);
-      }
+        setTalentBuilderRank(bestResult.builderRank > 0 ? bestResult.builderRank.toLocaleString() : "-");
+      } catch (e) { console.error("Talent API Error:", e); }
     }
   }, []);
 
@@ -183,8 +157,6 @@ export default function Home() {
         const user = data.users[0];
         setNeynarScore(user.score ? user.score.toFixed(2) : "0.00");
         const addrs = [user.custody_address, ...(user.verified_addresses?.eth_addresses || [])].filter(Boolean);
-        
-        // Pass FID juga ke sini
         if (addrs.length > 0) { 
           checkVerifications(addrs); 
           fetchReputation(addrs, fid); 
@@ -193,7 +165,6 @@ export default function Home() {
     } catch (e) { console.error(e); }
   }, [checkVerifications, fetchReputation]);
 
-  // --- HANDLERS ---
   const handleBoost = () => {
     if (!address) return;
     setTxStatusMessage("Processing transaction...");
@@ -244,12 +215,24 @@ export default function Home() {
     if (sdk && !isSDKLoaded) init();
   }, [isSDKLoaded, fetchAddressAndStats]);
 
+  // Auto-connect di Farcaster/Base app
+  useEffect(() => {
+    if (isSDKLoaded && !isConnected) {
+      const fcConnector = connectors.find(c => c.id === 'farcaster-miniapp');
+      if (fcConnector) connect({ connector: fcConnector });
+    }
+  }, [isSDKLoaded]);
+
   if (!mounted) return null;
+
+  // Filter wallet options yang connectornya tersedia
+  const availableWallets = WALLET_OPTIONS.filter(w =>
+    connectors.some(c => c.id === w.id)
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground p-6 font-mono transition-colors duration-300 flex flex-col overflow-x-hidden relative">
       
-      {/* === HEADER === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-border relative z-20">
         <div className="flex items-center gap-4 relative overflow-visible">
           <motion.div 
@@ -264,29 +247,22 @@ export default function Home() {
             <p className="text-[8px] text-muted-foreground mt-1 font-bold tracking-widest uppercase">Reputation Hub</p>
           </div>
         </div>
-        
-        {/* Kontainer Tombol Header */}
         <div className="flex items-center gap-2">
-          {/* Tombol GitHub */}
           <a 
             href="https://github.com/Chronique/tx-xhecker" 
-            target="_blank" 
-            rel="noopener noreferrer"
+            target="_blank" rel="noopener noreferrer"
             className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border flex items-center justify-center"
             title="Source Code"
           >
             <Github className="w-5 h-5" />
           </a>
-
           <ThemeToggle />
-          
           <button onClick={startTour} className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border">
             <HelpCircle className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* MAIN CARD */}
       <div id="profile-card" className="bg-card/50 backdrop-blur-md p-6 rounded-2xl border border-primary/20 mb-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
@@ -318,25 +294,17 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- SCORES GRID (TALENT LEFT BIG) --- */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
-          
-          {/* LEFT: TALENT PROTOCOL (BIG) */}
           <div id="talent-card" className="p-4 bg-muted/40 rounded-xl text-center border border-border h-auto flex flex-col justify-center items-center group hover:border-primary/50 transition-colors relative overflow-hidden">
             <div className="relative z-10 w-full">
-              {/* Header */}
               <div className="flex items-center justify-center gap-1.5 mb-3">
                 <Trophy className="w-4 h-4 text-purple-400" />
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Talent Protocol</p>
               </div>
-
-              {/* Main Stat: Builder Score */}
               <div className="flex flex-col items-center mb-3">
                 <p className="text-4xl font-black text-purple-400 leading-none">{talentBuilderScore}</p>
                 <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mt-1">Builder Score</p>
               </div>
-
-              {/* Sub Stats: Rank & Creator */}
               <div className="flex justify-between w-full border-t border-border/50 pt-2 mt-2 px-2">
                 <div className="text-left">
                   <p className="text-[8px] text-muted-foreground font-bold uppercase">Rank</p>
@@ -354,9 +322,7 @@ export default function Home() {
             <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl -mr-8 -mt-8"></div>
           </div>
 
-          {/* RIGHT: NEYNAR & GITCOIN (STACKED) */}
           <div className="flex flex-col gap-2">
-            
             <div id="neynar-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex items-center gap-1.5 mb-1">
                 <Zap className="w-3 h-3 text-primary" />
@@ -364,7 +330,6 @@ export default function Home() {
               </div>
               <p className="text-xl font-black text-foreground">{neynarScore}</p>
             </div>
-
             <div id="gitcoin-card" className="flex-1 p-2.5 bg-muted/40 rounded-xl border border-border flex flex-col justify-center">
               <div className="flex justify-between items-center mb-1">
                 <div className="flex items-center gap-1.5">
@@ -377,18 +342,15 @@ export default function Home() {
               </div>
               <p className="text-xl font-black text-orange-400">{gitcoinScore || "0.00"}</p>
             </div>
-
           </div>
         </div>
 
-        {/* --- ACTIONS --- */}
         {isConnected ? (
           <div className="space-y-3 relative z-10">
             <div id="verification-box" className="border border-primary/20 bg-primary/5 rounded-xl p-3 relative pt-5 mb-2">
               <div className="absolute -top-2.5 right-3 bg-primary text-primary-foreground text-[9px] font-bold px-2 py-0.5 rounded shadow-lg border border-white/10 flex items-center gap-1">
                 <Smartphone className="w-3 h-3" /> BASE APP ONLY
               </div>
-
               <div className="space-y-2">
                 <a href={VERIFY_SOCIAL_URL} target="_blank" className="group relative w-full py-2.5 block rounded-lg overflow-hidden transition-all active:scale-95 border border-primary/30">
                   <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#3b82f6_50%,transparent_100%)] opacity-20 group-hover:opacity-60 transition-opacity"></div>
@@ -398,7 +360,6 @@ export default function Home() {
                     {isSocialVerified ? 'SOCIAL VERIFIED' : 'VERIFY SOCIAL'}
                   </div>
                 </a>
-
                 <a href={VERIFY_IDENTITY_URL} target="_blank" className="group relative w-full py-2.5 block rounded-lg overflow-hidden transition-all active:scale-95 border border-green-500/30">
                   <div className="absolute inset-0 w-[200%] h-[200%] top-[-50%] left-[-50%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#22c55e_50%,transparent_100%)] opacity-20 group-hover:opacity-60 transition-opacity"></div>
                   <div className="absolute inset-[1px] bg-card rounded-lg z-10"></div>
@@ -432,25 +393,47 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <button 
-            onClick={() => {
-              const fcConnector = connectors.find(c => c.id === 'farcaster-miniapp');
-              const otherConnector = connectors.find(c => c.id !== 'farcaster-miniapp'); 
+          // ✅ WALLET PICKER - ganti single button
+          <div className="relative z-10">
+            <button
+              onClick={() => setShowWalletPicker(v => !v)}
+              disabled={isConnecting}
+              className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              <Wallet className="w-4 h-4" />
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+              <ChevronDown className={`w-4 h-4 transition-transform ${showWalletPicker ? "rotate-180" : ""}`} />
+            </button>
 
-              if (isSDKLoaded && fcConnector) {
-                connect({ connector: fcConnector });
-              } else {
-                connect({ connector: otherConnector || connectors[0] });
-              }
-            }} 
-            className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg"
-          >
-            Connect Wallet
-          </button>
+            <AnimatePresence>
+              {showWalletPicker && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  className="mt-2 rounded-xl border border-border bg-card overflow-hidden shadow-xl"
+                >
+                  {availableWallets.map(wallet => {
+                    const connector = connectors.find(c => c.id === wallet.id);
+                    if (!connector) return null;
+                    return (
+                      <button
+                        key={wallet.id}
+                        onClick={() => { connect({ connector }); setShowWalletPicker(false); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/60 transition-colors text-left border-b border-border/50 last:border-0"
+                      >
+                        <span className="text-xl">{wallet.icon}</span>
+                        <span className="font-bold text-sm">{wallet.label}</span>
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
-      {/* FOOTER */}
       <div id="tip-box-container" className="mt-auto">
         <TipBox />
         <p className="text-[8px] text-center text-muted-foreground uppercase tracking-widest mt-4">
