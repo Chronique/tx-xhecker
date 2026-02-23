@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     siteName: METADATA.name
   },
   other: {
+    "talentapp:project_verification": "88cba648c9ddee23dff549d1a781a223b6256d7e50e696066f1c07b0b3a8a0d47068c9abc9b45ae6591e702bbe9e5a82271f359bd7647b782552e64d56bcb8d6",
     "fc:frame": JSON.stringify({
       version: "next",
       imageUrl: METADATA.bannerImageUrl,
