@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useAccount, useConnect } from "wagmi";
+import { useAccount, useConnect, useWriteContract } from "wagmi";
 import { useCapabilities, useWriteContracts } from "wagmi/experimental"; 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { METADATA } from "~/lib/utils"; 
@@ -9,17 +9,20 @@ import { TipBox } from "~/components/wallet/TipBox";
 import { ThemeToggle } from "~/components/ui/ThemeToggle";
 import { Attribution } from "ox/erc8021";
 
+// --- IMPORT ICON ---
 import { MdContentPasteSearch } from "react-icons/md"; 
 import { 
   Star, Share2, Zap, CheckCircle2, ShieldCheck, 
   AlertTriangle, Twitter, Fingerprint, RefreshCcw, HelpCircle, Smartphone, Trophy, Palette,
-  Github, Wallet, ChevronDown
+  Github
 } from "lucide-react"; 
 
-import { motion, AnimatePresence } from "framer-motion";
+// --- IMPORT MOTION & DRIVER ---
+import { motion } from "framer-motion";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
+// --- KONFIGURASI ---
 const GITCOIN_API_KEY = process.env.NEXT_PUBLIC_GITCOIN_API_KEY; 
 const GITCOIN_SCORER_ID = process.env.NEXT_PUBLIC_GITCOIN_SCORER_ID; 
 const TALENT_API_KEY = process.env.NEXT_PUBLIC_TALENT_API_KEY; 
@@ -29,6 +32,7 @@ const BOOST_CONTRACT_ADDRESS = "0x285E7E937059f93dAAF6845726e60CD22A865caF";
 const VERIFY_SOCIAL_URL = "https://verify.base.dev/verifications"; 
 const VERIFY_IDENTITY_URL = "https://www.coinbase.com/onchain-verify"; 
 
+// ✅ ERC-8021 attribution
 const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_1x8rrnnv"] });
 
 const BOOST_ABI = [
@@ -39,22 +43,18 @@ const BOOST_ABI = [
 const SCHEMA_IDENTITY = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
 const SCHEMA_TWITTER = "0x6291a26f3020617306263907727103a088924375375772392462332997632626";
 
-// --- WALLET CONFIG: label, icon, connector id ---
-const WALLET_OPTIONS = [
-  { id: "metaMask",       label: "MetaMask",          icon: "🦊" },
-  { id: "coinbaseWalletSDK", label: "Base Smart Wallet", icon: "🔵" },
-  { id: "walletConnect",  label: "WalletConnect",     icon: "🔗" },
-];
-
 export default function Home() {
   const { address, isConnected, chainId } = useAccount(); 
   const { connectors, connect, isPending: isConnecting } = useConnect();
-  const { writeContracts, isPending: isTxPending } = useWriteContracts();
+
+  // ✅ Dua hook: writeContracts untuk smart wallet, writeContract untuk wallet biasa
+  const { writeContracts, isPending: isPendingBatch } = useWriteContracts();
+  const { writeContract, isPending: isPendingRegular } = useWriteContract();
+  const isTxPending = isPendingBatch || isPendingRegular;
   
   const [mounted, setMounted] = useState(false);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
-  const [showWalletPicker, setShowWalletPicker] = useState(false);
   
   const [neynarScore, setNeynarScore] = useState<string>("...");
   const [gitcoinScore, setGitcoinScore] = useState<string | null>(null);
@@ -68,7 +68,17 @@ export default function Home() {
 
   useEffect(() => { setMounted(true); }, []);
 
+  // --- LOGIC PAYMASTER ---
   const { data: availableCapabilities } = useCapabilities({ account: address, query: { enabled: !!address } });
+
+  // ✅ Cek apakah wallet support EIP-5792 (writeContracts)
+  const supportsEIP5792 = useMemo(() => {
+    if (!availableCapabilities || !chainId) return false;
+    const caps = availableCapabilities[chainId];
+    // Smart wallet: punya atomicBatch atau paymasterService
+    return !!(caps?.["atomicBatch"]?.supported || caps?.["paymasterService"]?.supported);
+  }, [availableCapabilities, chainId]);
+
   const capabilities = useMemo(() => {
     if (!availableCapabilities || !chainId) return { dataSuffix: DATA_SUFFIX };
     const caps = availableCapabilities[chainId];
@@ -78,6 +88,7 @@ export default function Home() {
     return { dataSuffix: DATA_SUFFIX };
   }, [availableCapabilities, chainId]);
 
+  // --- LOGIC FETCHING ---
   const checkVerifications = useCallback(async (addrs: string[]) => {
     try {
       const formatted = addrs.map(a => a.toLowerCase());
@@ -128,23 +139,29 @@ export default function Home() {
             const builderRank = builderData?.rank_position || 0;
             const creatorData = scoresList.find((s: any) => s.slug === 'creator_score');
             const creatorPoints = creatorData?.points || 0;
+            console.log(`👤 Target ${target.slice(0,10)}... -> Builder: ${builderPoints}, Rank: ${builderRank}`);
             return { builderPoints, builderRank, creatorPoints };
-          } catch { return { builderPoints: 0, builderRank: 0, creatorPoints: 0 }; }
+          } catch (err) {
+            return { builderPoints: 0, builderRank: 0, creatorPoints: 0 };
+          }
         });
 
         const results = await Promise.all(talentPromises);
         const bestResult = results.reduce((prev, current) => {
           if (current.builderPoints > prev.builderPoints) return current;
           if (current.builderPoints === prev.builderPoints) {
-            if (current.builderRank > 0 && (prev.builderRank === 0 || current.builderRank < prev.builderRank)) return current;
+             if (current.builderRank > 0 && (prev.builderRank === 0 || current.builderRank < prev.builderRank)) return current;
           }
           return prev;
         }, { builderPoints: 0, builderRank: 0, creatorPoints: 0 });
 
+        console.log("🏆 Best Talent Result:", bestResult);
         setTalentBuilderScore(bestResult.builderPoints.toString());
         setTalentCreatorScore(bestResult.creatorPoints.toString());
         setTalentBuilderRank(bestResult.builderRank > 0 ? bestResult.builderRank.toLocaleString() : "-");
-      } catch (e) { console.error("Talent API Error:", e); }
+      } catch (e) { 
+        console.error("Talent API Error:", e);
+      }
     }
   }, []);
 
@@ -165,16 +182,33 @@ export default function Home() {
     } catch (e) { console.error(e); }
   }, [checkVerifications, fetchReputation]);
 
+  // ✅ BOOST: auto-pilih writeContracts (smart wallet) atau writeContract (wallet biasa)
   const handleBoost = () => {
     if (!address) return;
     setTxStatusMessage("Processing transaction...");
-    writeContracts({
-      contracts: [{ address: BOOST_CONTRACT_ADDRESS, abi: BOOST_ABI, functionName: 'boost', args: [] }],
-      capabilities,
-    }, {
-      onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
-      onError: () => setTxStatusMessage("Failed. Try again.")
-    });
+
+    if (supportsEIP5792) {
+      // Smart wallet path: pakai writeContracts + dataSuffix untuk attribution
+      writeContracts({
+        contracts: [{ address: BOOST_CONTRACT_ADDRESS, abi: BOOST_ABI, functionName: 'boost', args: [] }],
+        capabilities,
+      }, {
+        onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
+        onError: (e) => { console.error(e); setTxStatusMessage("Failed. Try again."); }
+      });
+    } else {
+      // Regular wallet path: pakai writeContract + dataSuffix manual di data field
+      writeContract({
+        address: BOOST_CONTRACT_ADDRESS,
+        abi: BOOST_ABI,
+        functionName: 'boost',
+        args: [],
+        dataSuffix: DATA_SUFFIX,
+      }, {
+        onSuccess: () => setTxStatusMessage("Success! Activity boosted."),
+        onError: (e) => { console.error(e); setTxStatusMessage("Failed. Try again."); }
+      });
+    }
   };
 
   const handleAddMiniApp = async () => { try { await sdk.actions.addMiniApp(); setIsAdded(true); } catch (e) {} };
@@ -225,14 +259,17 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  // Filter wallet options yang connectornya tersedia
-  const availableWallets = WALLET_OPTIONS.filter(w =>
-    connectors.some(c => c.id === w.id)
-  );
+  const connectWith = (connectorId: string) => {
+    const connector = connectors.find(c => c.id === connectorId);
+    if (connector) connect({ connector });
+  };
+
+  const hasWalletConnect = connectors.some(c => c.id === 'walletConnect');
 
   return (
     <div className="min-h-screen bg-background text-foreground p-6 font-mono transition-colors duration-300 flex flex-col overflow-x-hidden relative">
       
+      {/* === HEADER === */}
       <div id="header-anim" className="flex items-center justify-between mb-8 pb-4 border-b border-border relative z-20">
         <div className="flex items-center gap-4 relative overflow-visible">
           <motion.div 
@@ -247,10 +284,12 @@ export default function Home() {
             <p className="text-[8px] text-muted-foreground mt-1 font-bold tracking-widest uppercase">Reputation Hub</p>
           </div>
         </div>
+        
         <div className="flex items-center gap-2">
           <a 
             href="https://github.com/Chronique/tx-xhecker" 
-            target="_blank" rel="noopener noreferrer"
+            target="_blank" 
+            rel="noopener noreferrer"
             className="p-2 text-muted-foreground hover:text-foreground transition bg-muted/50 rounded-full border border-border flex items-center justify-center"
             title="Source Code"
           >
@@ -263,6 +302,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* MAIN CARD */}
       <div id="profile-card" className="bg-card/50 backdrop-blur-md p-6 rounded-2xl border border-primary/20 mb-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
@@ -294,6 +334,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* --- SCORES GRID --- */}
         <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
           <div id="talent-card" className="p-4 bg-muted/40 rounded-xl text-center border border-border h-auto flex flex-col justify-center items-center group hover:border-primary/50 transition-colors relative overflow-hidden">
             <div className="relative z-10 w-full">
@@ -345,6 +386,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* --- ACTIONS --- */}
         {isConnected ? (
           <div className="space-y-3 relative z-10">
             <div id="verification-box" className="border border-primary/20 bg-primary/5 rounded-xl p-3 relative pt-5 mb-2">
@@ -393,47 +435,36 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          // ✅ WALLET PICKER - ganti single button
-          <div className="relative z-10">
+          // ✅ CONNECT: 3 tombol terpisah
+          <div className="space-y-2 relative z-10">
             <button
-              onClick={() => setShowWalletPicker(v => !v)}
+              onClick={() => connectWith('injected')}
               disabled={isConnecting}
-              className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2"
+              className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg text-sm"
             >
-              <Wallet className="w-4 h-4" />
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-              <ChevronDown className={`w-4 h-4 transition-transform ${showWalletPicker ? "rotate-180" : ""}`} />
+              {isConnecting ? "Connecting..." : "🦊 Browser Wallet (MetaMask / Rabby / OKX)"}
             </button>
-
-            <AnimatePresence>
-              {showWalletPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="mt-2 rounded-xl border border-border bg-card overflow-hidden shadow-xl"
-                >
-                  {availableWallets.map(wallet => {
-                    const connector = connectors.find(c => c.id === wallet.id);
-                    if (!connector) return null;
-                    return (
-                      <button
-                        key={wallet.id}
-                        onClick={() => { connect({ connector }); setShowWalletPicker(false); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/60 transition-colors text-left border-b border-border/50 last:border-0"
-                      >
-                        <span className="text-xl">{wallet.icon}</span>
-                        <span className="font-bold text-sm">{wallet.label}</span>
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <button
+              onClick={() => connectWith('coinbaseWalletSDK')}
+              disabled={isConnecting}
+              className="w-full bg-[#0052FF] text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all text-sm"
+            >
+              🔵 Base Smart Wallet
+            </button>
+            {hasWalletConnect && (
+              <button
+                onClick={() => connectWith('walletConnect')}
+                disabled={isConnecting}
+                className="w-full bg-muted text-foreground py-3 rounded-xl font-bold hover:bg-muted/80 transition-all border border-border text-sm"
+              >
+                🔗 WalletConnect
+              </button>
+            )}
           </div>
         )}
       </div>
 
+      {/* FOOTER */}
       <div id="tip-box-container" className="mt-auto">
         <TipBox />
         <p className="text-[8px] text-center text-muted-foreground uppercase tracking-widest mt-4">

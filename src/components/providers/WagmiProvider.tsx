@@ -30,11 +30,11 @@ export const config = createConfig({
   },
   connectors: [
     farcasterMiniApp(),
+    injected(),  // ✅ Tanpa target = support semua wallet (Rabby, OKX, MetaMask, dll)
     baseAccount({
       appName: METADATA.name,
       appLogoUrl: METADATA.iconImageUrl,
     }),
-    injected({ target: "metaMask" }),
     ...(walletConnectProjectId
       ? [walletConnect({ projectId: walletConnectProjectId, metadata: { name: METADATA.name, description: "", url: METADATA.homeUrl, icons: [METADATA.iconImageUrl] } })]
       : []
