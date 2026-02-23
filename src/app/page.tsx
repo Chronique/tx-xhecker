@@ -33,7 +33,7 @@ const VERIFY_SOCIAL_URL = "https://verify.base.dev/verifications";
 const VERIFY_IDENTITY_URL = "https://www.coinbase.com/onchain-verify"; 
 
 // ✅ ERC-8021 attribution
-const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_1x8rrnnv"] });
+const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_2ivoo1oy"] });
 
 const BOOST_ABI = [
   { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "address", "name": "user", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "Boosted", "type": "event" },
